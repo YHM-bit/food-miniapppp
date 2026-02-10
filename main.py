@@ -295,7 +295,7 @@ def api_status(x_telegram_init_data: str = Header(default="")):
             "demo": True
         }
 
-    user_id = uid(x_telegram_init_data)
+    user_id = uid_from_init(x_telegram_init_data)
     db = load_db()
     u = get_user(db, user_id)
     apply_bonus(u)
@@ -352,7 +352,7 @@ def api_daily(x_telegram_init_data: str = Header(default="")):
         }
         return {"ok": True, "dish": dish, "demo": True}
 
-    user_id = uid(x_telegram_init_data)
+    user_id = uid_from_init(x_telegram_init_data)
     db = load_db()
     u = get_user(db, user_id)
     apply_bonus(u)
