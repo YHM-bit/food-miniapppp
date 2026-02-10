@@ -178,12 +178,61 @@ def lang_name(lang: str) -> str:
     return {"uk": "Ukrainian", "hr": "Croatian", "en": "English"}.get(lang, "Ukrainian")
 
 def ai_pool(lang: str, forbidden: List[str], n: int = 10) -> List[Dict[str, Any]]:
-    from openai import OpenAI
-    client = OpenAI(base_url=AI_ENDPOINT, api_key=AI_API_KEY)
+    """
+    Tries AI first. If AI fails (403/no access/network/etc) -> returns a safe fallback pool.
+    This keeps the Mini App working.
+    """
+    def fallback_pool() -> List[Dict[str, Any]]:
+        # Minimal but valid pool (tags must be in ALLOWED_TAGS)
+        base = [
+            {
+                "title": "Омлет з сиром" if lang == "uk" else ("Omlet sa sirom" if lang == "hr" else "Cheese omelet"),
+                "why": "Швидко і просто." if lang == "uk" else ("Brzo i jednostavno." if lang == "hr" else "Fast and simple."),
+                "ingredients": ["яйця", "сир", "сіль", "перець"] if lang == "uk"
+                               else (["jaja", "sir", "sol", "papar"] if lang == "hr" else ["eggs", "cheese", "salt", "pepper"]),
+                "steps": ["Збий яйця", "Додай сир", "Посмаж 5-7 хв"] if lang == "uk"
+                         else (["Umuti jaja", "Dodaj sir", "Prži 5-7 min"] if lang == "hr" else ["Beat eggs", "Add cheese", "Fry 5–7 min"]),
+                "time_total_min": 10,
+                "tags": ["vegetarian", "quick"],
+            },
+            {
+                "title": "Салат з тунцем" if lang == "uk" else ("Salata s tunom" if lang == "hr" else "Tuna salad"),
+                "why": "Багато білка." if lang == "uk" else ("Puno proteina." if lang == "hr" else "High protein."),
+                "ingredients": ["тунець", "огірок", "помідор", "оливкова олія"] if lang == "uk"
+                               else (["tuna", "krastavac", "rajčica", "maslinovo ulje"] if lang == "hr" else ["tuna", "cucumber", "tomato", "olive oil"]),
+                "steps": ["Наріж овочі", "Додай тунець", "Заправ олією"] if lang == "uk"
+                         else (["Nareži povrće", "Dodaj tunu", "Začini uljem"] if lang == "hr" else ["Chop veggies", "Add tuna", "Dress with oil"]),
+                "time_total_min": 12,
+                "tags": ["pescatarian", "high_protein", "quick"],
+            },
+            {
+                "title": "Вівсянка з бананом" if lang == "uk" else ("Zobena kaša s bananom" if lang == "hr" else "Oatmeal with banana"),
+                "why": "Легкий сніданок." if lang == "uk" else ("Lagani doručak." if lang == "hr" else "Easy breakfast."),
+                "ingredients": ["вівсянка", "банан", "молоко/вода"] if lang == "uk"
+                               else (["zob", "banana", "mlijeko/voda"] if lang == "hr" else ["oats", "banana", "milk/water"]),
+                "steps": ["Залий вівсянку", "Вари 5 хв", "Додай банан"] if lang == "uk"
+                         else (["Prelij zob", "Kuhaj 5 min", "Dodaj bananu"] if lang == "hr" else ["Add liquid", "Cook 5 min", "Add banana"]),
+                "time_total_min": 8,
+                "tags": ["vegetarian", "quick"],
+            },
+        ]
+        # expand to n by repeating with slight variations
+        out = []
+        i = 0
+        while len(out) < n:
+            item = base[i % len(base)].copy()
+            item["title"] = f"{item['title']} #{(i//len(base))+1}" if i >= len(base) else item["title"]
+            out.append(item)
+            i += 1
+        return out[:n]
 
-    forb = ", ".join(forbidden[-120:])
-    system = "You are a creative chef. Output ONLY valid JSON array. No markdown."
-    user = f"""
+    try:
+        from openai import OpenAI
+        client = OpenAI(base_url=AI_ENDPOINT, api_key=AI_API_KEY)
+
+        forb = ", ".join(forbidden[-120:])
+        system = "You are a creative chef. Output ONLY valid JSON array. No markdown."
+        user = f"""
 Generate {n} different dish ideas in {lang_name(lang)} for today.
 Forbidden titles: [{forb}]
 
@@ -193,38 +242,36 @@ tags MUST be English from: {sorted(list(ALLOWED_TAGS))}
 Only JSON ARRAY.
 """.strip()
 
-    r = client.chat.completions.create(
-        model=AI_MODEL,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        temperature=1.1,
-    )
+        r = client.chat.completions.create(
+            model=AI_MODEL,
+            messages=[{"role":"system","content":system},{"role":"user","content":user}],
+            temperature=1.1,
+        )
 
-    raw = strip_fences(r.choices[0].message.content or "[]")
-    data = json.loads(raw)
+        data = json.loads(strip_fences(r.choices[0].message.content or "[]"))
+        out = []
+        for it in data:
+            if not isinstance(it, dict):
+                continue
+            title = str(it.get("title","")).strip()
+            if not title:
+                continue
+            tags = [t for t in (it.get("tags") or []) if t in ALLOWED_TAGS]
+            out.append({
+                "title": title[:80],
+                "why": str(it.get("why",""))[:240],
+                "ingredients": [str(x)[:120] for x in (it.get("ingredients") or []) if str(x).strip()],
+                "steps": [str(x)[:200] for x in (it.get("steps") or []) if str(x).strip()],
+                "time_total_min": int(it.get("time_total_min",30) or 30),
+                "tags": tags,
+            })
+        if len(out) < 3:
+            return fallback_pool()
+        return out[:n]
+    except Exception as e:
+        # Any failure (403/no access/network/json issues) -> fallback
+        return fallback_pool()
 
-    out: List[Dict[str, Any]] = []
-    for it in data:
-        if not isinstance(it, dict):
-            continue
-        title = str(it.get("title", "")).strip()
-        if not title:
-            continue
-        tags = [t for t in (it.get("tags") or []) if t in ALLOWED_TAGS]
-        out.append({
-            "title": title[:80],
-            "why": str(it.get("why", ""))[:240],
-            "ingredients": [str(x)[:120] for x in (it.get("ingredients") or []) if str(x).strip()],
-            "steps": [str(x)[:200] for x in (it.get("steps") or []) if str(x).strip()],
-            "time_total_min": int(it.get("time_total_min", 30) or 30),
-            "tags": tags,
-        })
-
-    if len(out) < 3:
-        raise ValueError("AI output invalid.")
-    return out[:n]
 
 def get_pool(db: Dict[str, Any], lang: str) -> List[Dict[str, Any]]:
     d = today()
