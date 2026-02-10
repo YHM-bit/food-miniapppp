@@ -5,14 +5,16 @@ from urllib.parse import parse_qsl
 from typing import Dict, Any, List, Optional
 from threading import Lock
 
-from fastapi import FastAPI, Header, HTTPException
+import httpx
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 
-# -------------------- CONFIG --------------------
+# ==================== CONFIG ====================
 TZ = ZoneInfo("Europe/Uzhgorod")
 DB_PATH = "db.json"
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN")  # required for Telegram initData verify
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "")  # REQUIRED for Telegram initData + webhook + Stars
+WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")  # optional but recommended
 
 TRIAL_DAYS = 7
 DAILY_BONUS = 5
@@ -27,23 +29,31 @@ ALLOWED_TAGS = {
     "quick",
 }
 
+# Telegram Stars packs (edit as you want)
+STAR_PACKS = {
+    "small":  {"stars": 25,  "tokens": 50,  "title": "50 tokens",  "desc": "Token pack (small)"},
+    "medium": {"stars": 75,  "tokens": 180, "title": "180 tokens", "desc": "Token pack (medium)"},
+    "large":  {"stars": 200, "tokens": 550, "title": "550 tokens", "desc": "Token pack (large)"},
+}
+
 LOCK = Lock()
 RNG = random.Random()
 
 app = FastAPI()
 
-# -------------------- BASIC ROUTES --------------------
+# ==================== BASIC ROUTES ====================
 
 @app.get("/health")
 def health():
     return {
         "ok": True,
         "has_bot_token": bool(BOT_TOKEN),
+        "has_webhook_secret": bool(WEBHOOK_SECRET),
         "files": {
             "web/index.html": os.path.exists("web/index.html"),
             "index.html": os.path.exists("index.html"),
             "db.json": os.path.exists(DB_PATH),
-        },
+        }
     }
 
 @app.get("/", response_class=HTMLResponse)
@@ -57,7 +67,7 @@ def root():
         status_code=500
     )
 
-# -------------------- TIME/DB --------------------
+# ==================== TIME/DB ====================
 
 def now() -> datetime:
     return datetime.now(TZ)
@@ -67,7 +77,7 @@ def today() -> str:
 
 def load_db() -> Dict[str, Any]:
     if not os.path.exists(DB_PATH):
-        return {"users": {}, "daily": {}, "used_titles": {"uk": [], "hr": [], "en": []}}
+        return {"users": {}, "daily": {}}
     with open(DB_PATH, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -88,6 +98,8 @@ def default_filters() -> Dict[str, Any]:
 
 def get_user(db: Dict[str, Any], uid: int) -> Dict[str, Any]:
     suid = str(uid)
+    if "users" not in db:
+        db["users"] = {}
     if suid not in db["users"]:
         created = now()
         db["users"][suid] = {
@@ -102,15 +114,17 @@ def get_user(db: Dict[str, Any], uid: int) -> Dict[str, Any]:
             "uploads": [],
         }
     u = db["users"][suid]
-    u.setdefault("favorites", [])
-    u.setdefault("uploads", [])
-    u.setdefault("daily_paid", "")
-    u.setdefault("filters", default_filters())
     u.setdefault("lang", "uk")
     u.setdefault("tokens", 15)
+    u.setdefault("filters", default_filters())
+    u.setdefault("daily_paid", "")
+    u.setdefault("favorites", [])
+    u.setdefault("uploads", [])
+    u.setdefault("last_bonus", "")
+    u.setdefault("trial_until", (now() + timedelta(days=TRIAL_DAYS)).isoformat())
     return u
 
-# -------------------- TOKENS/TRIAL --------------------
+# ==================== TOKENS/TRIAL ====================
 
 def is_trial(u: Dict[str, Any]) -> bool:
     return now() < datetime.fromisoformat(u["trial_until"])
@@ -135,7 +149,7 @@ def charge(u: Dict[str, Any], feature: str) -> bool:
         return True
     return False
 
-# -------------------- FILTER MATCH --------------------
+# ==================== FILTER MATCH ====================
 
 def dish_matches_filters(d: Dict[str, Any], f: Dict[str, Any]) -> bool:
     tags = set(d.get("tags", []))
@@ -160,7 +174,7 @@ def dish_matches_filters(d: Dict[str, Any], f: Dict[str, Any]) -> bool:
 
     return True
 
-# -------------------- MINI AI (FAST LOCAL GENERATOR) --------------------
+# ==================== MINI AI (FAST LOCAL) ====================
 
 BASE_ING = {
     "uk": {
@@ -288,7 +302,6 @@ def mini_ai_generate_one(lang: str, f: Dict[str, Any]) -> Dict[str, Any]:
     lang = lang if lang in ("uk", "hr", "en") else "uk"
     exclude = f.get("exclude") or []
 
-    # choose kind with max_time bias
     kind = RNG.choice(["bowl", "omelet", "pasta", "wrap", "soup", "oats"])
     base_time = {"bowl": 12, "omelet": 10, "pasta": 20, "wrap": 15, "soup": 25, "oats": 8}[kind]
 
@@ -298,15 +311,10 @@ def mini_ai_generate_one(lang: str, f: Dict[str, Any]) -> Dict[str, Any]:
         base_time = {"omelet": 10, "bowl": 12, "oats": 8, "wrap": 15}[kind]
 
     diet = f.get("diet", "any")
-
-    # protein choice by diet
     if diet == "vegan":
         protein = ["квасоля"] if lang == "uk" else (["grah"] if lang == "hr" else ["beans"])
     elif diet == "pescatarian":
         protein = ["тунець"] if lang == "uk" else (["tuna"] if lang == "hr" else ["tuna"])
-    elif diet == "vegetarian":
-        # keep as is (eggs/cheese/yogurt etc)
-        protein = _pick(lang, "protein", 1)
     else:
         protein = _pick(lang, "protein", 1)
 
@@ -318,7 +326,6 @@ def mini_ai_generate_one(lang: str, f: Dict[str, Any]) -> Dict[str, Any]:
     ingredients = protein + carbs + vegs + fats + spices
     ingredients = _remove_excluded(ingredients, exclude)
 
-    # refill if too few after exclusions
     while len(ingredients) < 6:
         ingredients += _pick(lang, "veg", 1)
         ingredients = _remove_excluded(ingredients, exclude)
@@ -332,7 +339,7 @@ def mini_ai_generate_one(lang: str, f: Dict[str, Any]) -> Dict[str, Any]:
     title = f"{RNG.choice(TITLES[lang][kind])}: {protein[0]}"
     why = RNG.choice(WHY[lang])
 
-    return {
+    dish = {
         "title": title[:80],
         "why": why[:240],
         "ingredients": [x[:120] for x in ingredients[:12]],
@@ -340,6 +347,7 @@ def mini_ai_generate_one(lang: str, f: Dict[str, Any]) -> Dict[str, Any]:
         "time_total_min": int(time_total),
         "tags": [t for t in tags if t in ALLOWED_TAGS],
     }
+    return dish
 
 def mini_ai_pool(lang: str, f: Dict[str, Any], n: int = 10) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
@@ -353,7 +361,7 @@ def mini_ai_pool(lang: str, f: Dict[str, Any], n: int = 10) -> List[Dict[str, An
         out = [mini_ai_generate_one(lang, f) for _ in range(n)]
     return out[:n]
 
-# -------------------- DAILY POOL (cache by day+lang+filters) --------------------
+# ==================== DAILY POOL (cache by day+lang+filters) ====================
 
 def get_pool(db: Dict[str, Any], lang: str, f: Dict[str, Any]) -> List[Dict[str, Any]]:
     d = today()
@@ -361,7 +369,6 @@ def get_pool(db: Dict[str, Any], lang: str, f: Dict[str, Any]) -> List[Dict[str,
     bucket = db["daily"][d].setdefault(lang, {})
 
     filter_key = json.dumps(f, ensure_ascii=False, sort_keys=True)
-
     if bucket.get("filter_key") == filter_key and isinstance(bucket.get("pool"), list):
         return bucket["pool"]
 
@@ -381,7 +388,7 @@ def pick_daily(db: Dict[str, Any], u: Dict[str, Any]) -> Optional[Dict[str, Any]
         return None
     return matches[0]
 
-# -------------------- TELEGRAM INITDATA VERIFY --------------------
+# ==================== TELEGRAM INITDATA VERIFY ====================
 
 def validate_init_data(init_data: str, bot_token: str, max_age_sec: int = 86400) -> int:
     pairs = dict(parse_qsl(init_data, keep_blank_values=True))
@@ -412,11 +419,27 @@ def uid_from_init(init_data: str) -> int:
         raise HTTPException(500, "BOT_TOKEN is not set on server")
     return validate_init_data(init_data, BOT_TOKEN)
 
-# -------------------- API --------------------
+# ==================== TELEGRAM API HELPERS ====================
+
+async def tg_api(method: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    if not BOT_TOKEN:
+        raise HTTPException(500, "BOT_TOKEN is not set on server")
+
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/{method}"
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.post(url, json=payload)
+    data = r.json()
+
+    if not data.get("ok"):
+        raise HTTPException(500, f"Telegram API error: {data}")
+
+    return data
+
+# ==================== API ====================
 
 @app.get("/api/status")
 def api_status(x_telegram_init_data: str = Header(default="")):
-    # Browser/demo mode
+    # DEMO (browser / not inside Telegram WebApp)
     if not x_telegram_init_data:
         return {
             "lang": "uk",
@@ -447,6 +470,7 @@ def api_lang(payload: Dict[str, Any], x_telegram_init_data: str = Header(default
     lang = payload.get("lang", "uk")
     if lang not in ("uk", "hr", "en"):
         lang = "uk"
+
     db = load_db()
     u = get_user(db, user_id)
     u["lang"] = lang
@@ -456,6 +480,7 @@ def api_lang(payload: Dict[str, Any], x_telegram_init_data: str = Header(default
 @app.post("/api/filters")
 def api_filters(payload: Dict[str, Any], x_telegram_init_data: str = Header(default="")):
     user_id = uid_from_init(x_telegram_init_data)
+
     db = load_db()
     u = get_user(db, user_id)
 
@@ -464,16 +489,14 @@ def api_filters(payload: Dict[str, Any], x_telegram_init_data: str = Header(defa
         if k in payload:
             f[k] = payload[k]
     u["filters"] = f
-
     save_db(db)
     return {"ok": True}
 
 @app.post("/api/daily")
 def api_daily(x_telegram_init_data: str = Header(default="")):
-    # Demo mode in browser (still uses generator so it's never just omelet)
+    # DEMO in browser (still not empty)
     if not x_telegram_init_data:
-        f = default_filters()
-        dish = mini_ai_generate_one("uk", f)
+        dish = mini_ai_generate_one("uk", default_filters())
         return {"ok": True, "dish": dish, "demo": True}
 
     user_id = uid_from_init(x_telegram_init_data)
@@ -521,3 +544,95 @@ def api_action(payload: Dict[str, Any], x_telegram_init_data: str = Header(defau
     if action == "steps":
         return {"ok": True, "data": dish.get("steps", [])}
     return {"ok": True, "data": dish.get("time_total_min", 0)}
+
+# ==================== TELEGRAM STARS: CREATE INVOICE LINK ====================
+
+@app.post("/api/stars/create_link")
+async def api_stars_create_link(payload: Dict[str, Any], x_telegram_init_data: str = Header(default="")):
+    # must be inside Telegram (need uid)
+    user_id = uid_from_init(x_telegram_init_data)
+
+    pack = payload.get("pack", "small")
+    if pack not in STAR_PACKS:
+        raise HTTPException(400, "bad pack")
+
+    p = STAR_PACKS[pack]
+
+    # payload that will come back in successful_payment.invoice_payload
+    invoice_payload = f"tokens:{user_id}:{pack}:{int(now().timestamp())}"
+
+    # Stars invoice: currency="XTR", provider_token="" , prices = one item, amount = Stars count
+    res = await tg_api("createInvoiceLink", {
+        "title": p["title"],
+        "description": p["desc"],
+        "payload": invoice_payload,
+        "provider_token": "",
+        "currency": "XTR",
+        "prices": [{"label": p["title"], "amount": int(p["stars"])}],
+    })
+
+    return {
+        "ok": True,
+        "link": res["result"],
+        "pack": pack,
+        "stars": p["stars"],
+        "tokens": p["tokens"],
+    }
+
+# ==================== TELEGRAM WEBHOOK (STARS CONFIRMATION) ====================
+
+def _webhook_secret_ok(req: Request) -> bool:
+    # Option A: Telegram header if you set it via setWebhook secret_token
+    h = req.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if WEBHOOK_SECRET and h and h == WEBHOOK_SECRET:
+        return True
+    # Option B: query parameter ?s=SECRET (easy setup)
+    if WEBHOOK_SECRET:
+        s = req.query_params.get("s", "")
+        return s == WEBHOOK_SECRET
+    # If no secret configured, accept (not recommended)
+    return True
+
+@app.post("/tg/webhook")
+async def tg_webhook(request: Request):
+    if not _webhook_secret_ok(request):
+        raise HTTPException(403, "Bad webhook secret")
+
+    update = await request.json()
+
+    # 1) Must answer pre_checkout_query
+    if "pre_checkout_query" in update:
+        pcq = update["pre_checkout_query"]
+        await tg_api("answerPreCheckoutQuery", {
+            "pre_checkout_query_id": pcq["id"],
+            "ok": True
+        })
+        return {"ok": True}
+
+    # 2) successful_payment arrives in message
+    msg = update.get("message") or update.get("edited_message")
+    if msg and msg.get("successful_payment"):
+        sp = msg["successful_payment"]
+        inv_payload = sp.get("invoice_payload", "")
+
+        # expected: tokens:{user_id}:{pack}:{ts}
+        m = re.match(r"^tokens:(\d+):([a-z]+):(\d+)$", inv_payload)
+        if not m:
+            return {"ok": True}
+
+        user_id = int(m.group(1))
+        pack = m.group(2)
+        if pack not in STAR_PACKS:
+            return {"ok": True}
+
+        tokens_add = int(STAR_PACKS[pack]["tokens"])
+
+        with LOCK:
+            db = load_db()
+            u = get_user(db, user_id)
+            u["tokens"] = int(u.get("tokens", 0)) + tokens_add
+            save_db(db)
+
+        return {"ok": True}
+
+    return {"ok": True}
