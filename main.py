@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import parse_qsl
 from typing import Dict, Any, List, Optional
-
 from threading import Lock
 
 from fastapi import FastAPI, Header, HTTPException
@@ -13,15 +12,14 @@ TZ = ZoneInfo("Europe/Uzhgorod")
 DB_PATH = "db.json"
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-AI_API_KEY = os.environ.get("AI_API_KEY")
+AI_API_KEY = os.environ.get("AI_API_KEY")  # може бути None
 AI_ENDPOINT = os.environ.get("AI_ENDPOINT", "https://models.github.ai/inference")
 AI_MODEL = os.environ.get("AI_MODEL", "openai/gpt-4o-mini")
 
-# На проді можна прибрати ці RuntimeError, але для дебагу краще хай падає
+# BOT_TOKEN потрібен для Telegram initData. Але для DEMO в браузері можна запуститись і без нього.
+# Якщо хочеш суворо — залиш RuntimeError тільки для прод, але зараз так буде стабільніше.
 if not BOT_TOKEN:
-    raise RuntimeError("Set BOT_TOKEN env var.")
-if not AI_API_KEY:
-    raise RuntimeError("Set AI_API_KEY env var.")
+    BOT_TOKEN = "DEMO_NO_TOKEN"
 
 LOCK = Lock()
 
@@ -47,10 +45,8 @@ app = FastAPI()
 def health():
     return {
         "ok": True,
-        "files": {
-            "web/index.html": os.path.exists("web/index.html"),
-            "index.html": os.path.exists("index.html"),
-        }
+        "has_web_index": os.path.exists("web/index.html"),
+        "has_root_index": os.path.exists("index.html"),
     }
 
 
@@ -108,7 +104,6 @@ def get_user(db: Dict[str, Any], uid: int) -> Dict[str, Any]:
             "last_bonus": "",
             "filters": default_filters(),
             "daily_paid": "",
-            # для сумісності з твоїм старим ботом
             "favorites": [],
             "uploads": [],
         }
@@ -116,6 +111,9 @@ def get_user(db: Dict[str, Any], uid: int) -> Dict[str, Any]:
     u.setdefault("favorites", [])
     u.setdefault("uploads", [])
     u.setdefault("daily_paid", "")
+    u.setdefault("filters", default_filters())
+    u.setdefault("lang", "uk")
+    u.setdefault("tokens", 15)
     return u
 
 
@@ -177,54 +175,53 @@ def strip_fences(s: str) -> str:
 def lang_name(lang: str) -> str:
     return {"uk": "Ukrainian", "hr": "Croatian", "en": "English"}.get(lang, "Ukrainian")
 
+def fallback_pool(lang: str, n: int = 10) -> List[Dict[str, Any]]:
+    base = [
+        {
+            "title": "Омлет з сиром" if lang == "uk" else ("Omlet sa sirom" if lang == "hr" else "Cheese omelet"),
+            "why": "Швидко і просто." if lang == "uk" else ("Brzo i jednostavno." if lang == "hr" else "Fast and simple."),
+            "ingredients": ["яйця", "сир", "сіль", "перець"] if lang == "uk"
+                           else (["jaja", "sir", "sol", "papar"] if lang == "hr" else ["eggs", "cheese", "salt", "pepper"]),
+            "steps": ["Збий яйця", "Додай сир", "Посмаж 5-7 хв"] if lang == "uk"
+                     else (["Umuti jaja", "Dodaj sir", "Prži 5-7 min"] if lang == "hr" else ["Beat eggs", "Add cheese", "Fry 5–7 min"]),
+            "time_total_min": 10,
+            "tags": ["vegetarian", "quick"],
+        },
+        {
+            "title": "Салат з тунцем" if lang == "uk" else ("Salata s tunom" if lang == "hr" else "Tuna salad"),
+            "why": "Багато білка." if lang == "uk" else ("Puno proteina." if lang == "hr" else "High protein."),
+            "ingredients": ["тунець", "огірок", "помідор", "оливкова олія"] if lang == "uk"
+                           else (["tuna", "krastavac", "rajčica", "maslinovo ulje"] if lang == "hr" else ["tuna", "cucumber", "tomato", "olive oil"]),
+            "steps": ["Наріж овочі", "Додай тунець", "Заправ олією"] if lang == "uk"
+                     else (["Nareži povrće", "Dodaj tunu", "Začini uljem"] if lang == "hr" else ["Chop veggies", "Add tuna", "Dress with oil"]),
+            "time_total_min": 12,
+            "tags": ["pescatarian", "high_protein", "quick"],
+        },
+        {
+            "title": "Вівсянка з бананом" if lang == "uk" else ("Zobena kaša s bananom" if lang == "hr" else "Oatmeal with banana"),
+            "why": "Легкий сніданок." if lang == "uk" else ("Lagani doručak." if lang == "hr" else "Easy breakfast."),
+            "ingredients": ["вівсянка", "банан", "молоко/вода"] if lang == "uk"
+                           else (["zob", "banana", "mlijeko/voda"] if lang == "hr" else ["oats", "banana", "milk/water"]),
+            "steps": ["Залий вівсянку", "Вари 5 хв", "Додай банан"] if lang == "uk"
+                     else (["Prelij zob", "Kuhaj 5 min", "Dodaj bananu"] if lang == "hr" else ["Add liquid", "Cook 5 min", "Add banana"]),
+            "time_total_min": 8,
+            "tags": ["vegetarian", "quick"],
+        },
+    ]
+    out = []
+    i = 0
+    while len(out) < n:
+        item = base[i % len(base)].copy()
+        if i >= len(base):
+            item["title"] = f"{item['title']} #{(i//len(base))+1}"
+        out.append(item)
+        i += 1
+    return out[:n]
+
 def ai_pool(lang: str, forbidden: List[str], n: int = 10) -> List[Dict[str, Any]]:
-    """
-    Tries AI first. If AI fails (403/no access/network/etc) -> returns a safe fallback pool.
-    This keeps the Mini App working.
-    """
-    def fallback_pool() -> List[Dict[str, Any]]:
-        # Minimal but valid pool (tags must be in ALLOWED_TAGS)
-        base = [
-            {
-                "title": "Омлет з сиром" if lang == "uk" else ("Omlet sa sirom" if lang == "hr" else "Cheese omelet"),
-                "why": "Швидко і просто." if lang == "uk" else ("Brzo i jednostavno." if lang == "hr" else "Fast and simple."),
-                "ingredients": ["яйця", "сир", "сіль", "перець"] if lang == "uk"
-                               else (["jaja", "sir", "sol", "papar"] if lang == "hr" else ["eggs", "cheese", "salt", "pepper"]),
-                "steps": ["Збий яйця", "Додай сир", "Посмаж 5-7 хв"] if lang == "uk"
-                         else (["Umuti jaja", "Dodaj sir", "Prži 5-7 min"] if lang == "hr" else ["Beat eggs", "Add cheese", "Fry 5–7 min"]),
-                "time_total_min": 10,
-                "tags": ["vegetarian", "quick"],
-            },
-            {
-                "title": "Салат з тунцем" if lang == "uk" else ("Salata s tunom" if lang == "hr" else "Tuna salad"),
-                "why": "Багато білка." if lang == "uk" else ("Puno proteina." if lang == "hr" else "High protein."),
-                "ingredients": ["тунець", "огірок", "помідор", "оливкова олія"] if lang == "uk"
-                               else (["tuna", "krastavac", "rajčica", "maslinovo ulje"] if lang == "hr" else ["tuna", "cucumber", "tomato", "olive oil"]),
-                "steps": ["Наріж овочі", "Додай тунець", "Заправ олією"] if lang == "uk"
-                         else (["Nareži povrće", "Dodaj tunu", "Začini uljem"] if lang == "hr" else ["Chop veggies", "Add tuna", "Dress with oil"]),
-                "time_total_min": 12,
-                "tags": ["pescatarian", "high_protein", "quick"],
-            },
-            {
-                "title": "Вівсянка з бананом" if lang == "uk" else ("Zobena kaša s bananom" if lang == "hr" else "Oatmeal with banana"),
-                "why": "Легкий сніданок." if lang == "uk" else ("Lagani doručak." if lang == "hr" else "Easy breakfast."),
-                "ingredients": ["вівсянка", "банан", "молоко/вода"] if lang == "uk"
-                               else (["zob", "banana", "mlijeko/voda"] if lang == "hr" else ["oats", "banana", "milk/water"]),
-                "steps": ["Залий вівсянку", "Вари 5 хв", "Додай банан"] if lang == "uk"
-                         else (["Prelij zob", "Kuhaj 5 min", "Dodaj bananu"] if lang == "hr" else ["Add liquid", "Cook 5 min", "Add banana"]),
-                "time_total_min": 8,
-                "tags": ["vegetarian", "quick"],
-            },
-        ]
-        # expand to n by repeating with slight variations
-        out = []
-        i = 0
-        while len(out) < n:
-            item = base[i % len(base)].copy()
-            item["title"] = f"{item['title']} #{(i//len(base))+1}" if i >= len(base) else item["title"]
-            out.append(item)
-            i += 1
-        return out[:n]
+    # Якщо нема ключа — не ліземо в AI
+    if not AI_API_KEY:
+        return fallback_pool(lang, n)
 
     try:
         from openai import OpenAI
@@ -253,7 +250,7 @@ Only JSON ARRAY.
         for it in data:
             if not isinstance(it, dict):
                 continue
-            title = str(it.get("title","")).strip()
+            title = str(it.get("title", "")).strip()
             if not title:
                 continue
             tags = [t for t in (it.get("tags") or []) if t in ALLOWED_TAGS]
@@ -262,15 +259,14 @@ Only JSON ARRAY.
                 "why": str(it.get("why",""))[:240],
                 "ingredients": [str(x)[:120] for x in (it.get("ingredients") or []) if str(x).strip()],
                 "steps": [str(x)[:200] for x in (it.get("steps") or []) if str(x).strip()],
-                "time_total_min": int(it.get("time_total_min",30) or 30),
+                "time_total_min": int(it.get("time_total_min", 30) or 30),
                 "tags": tags,
             })
         if len(out) < 3:
-            return fallback_pool()
+            return fallback_pool(lang, n)
         return out[:n]
-    except Exception as e:
-        # Any failure (403/no access/network/json issues) -> fallback
-        return fallback_pool()
+    except Exception:
+        return fallback_pool(lang, n)
 
 
 def get_pool(db: Dict[str, Any], lang: str) -> List[Dict[str, Any]]:
@@ -329,18 +325,32 @@ def uid_from_init(init_data: str) -> int:
     return validate_init_data(init_data, BOT_TOKEN)
 
 
+# -------------------- API --------------------
+
+def demo_status():
+    return {
+        "lang": "uk",
+        "trial": True,
+        "trial_days_left": TRIAL_DAYS,
+        "tokens": 15,
+        "filters": default_filters(),
+        "demo": True
+    }
+
+def demo_dish():
+    return {
+        "title": "Demo: Омлет за 10 хв",
+        "why": "Демо-режим (відкрито не в Telegram). Відкрий Mini App через бота для персоналізації.",
+        "ingredients": ["2 яйця", "сіль", "перець", "трохи масла"],
+        "steps": ["Збий яйця з сіллю.", "Розігрій пательню з маслом.", "Вилий яйця, готуй 2-3 хв."],
+        "time_total_min": 10,
+        "tags": ["quick", "high_protein"]
+    }
+
 @app.get("/api/status")
 def api_status(x_telegram_init_data: str = Header(default="")):
-    # ✅ DEMO mode (when opened in browser, no Telegram initData)
     if not x_telegram_init_data:
-        return {
-            "lang": "uk",
-            "trial": True,
-            "trial_days_left": TRIAL_DAYS,
-            "tokens": 15,
-            "filters": default_filters(),
-            "demo": True
-        }
+        return demo_status()
 
     user_id = uid_from_init(x_telegram_init_data)
     db = load_db()
@@ -356,9 +366,12 @@ def api_status(x_telegram_init_data: str = Header(default="")):
         "demo": False
     }
 
-
 @app.post("/api/lang")
 def api_lang(payload: Dict[str, Any], x_telegram_init_data: str = Header(default="")):
+    # DEMO: просто приймаємо, щоб UI не ламався в браузері
+    if not x_telegram_init_data:
+        return {"ok": True, "demo": True}
+
     user_id = uid_from_init(x_telegram_init_data)
     lang = payload.get("lang", "uk")
     if lang not in ("uk", "hr", "en"):
@@ -367,10 +380,13 @@ def api_lang(payload: Dict[str, Any], x_telegram_init_data: str = Header(default
     u = get_user(db, user_id)
     u["lang"] = lang
     save_db(db)
-    return {"ok": True}
+    return {"ok": True, "demo": False}
 
 @app.post("/api/filters")
 def api_filters(payload: Dict[str, Any], x_telegram_init_data: str = Header(default="")):
+    if not x_telegram_init_data:
+        return {"ok": True, "demo": True}
+
     user_id = uid_from_init(x_telegram_init_data)
     db = load_db()
     u = get_user(db, user_id)
@@ -382,46 +398,48 @@ def api_filters(payload: Dict[str, Any], x_telegram_init_data: str = Header(defa
     u["filters"] = f
 
     save_db(db)
-    return {"ok": True}
+    return {"ok": True, "demo": False}
 
 @app.post("/api/daily")
 def api_daily(x_telegram_init_data: str = Header(default="")):
-    # ✅ DEMO mode (browser)
     if not x_telegram_init_data:
-        # show a static demo dish so UI is never empty
-        dish = {
-            "title": "Demo: Омлет за 10 хв",
-            "why": "Демо-режим (відкрито не в Telegram). Відкрий Mini App через бота для персоналізації.",
-            "ingredients": ["2 яйця", "сіль", "перець", "трохи масла"],
-            "steps": ["Збий яйця з сіллю.", "Розігрій пательню з маслом.", "Вилий яйця, готуй 2-3 хв."],
-            "time_total_min": 10,
-            "tags": ["quick", "high_protein"]
-        }
-        return {"ok": True, "dish": dish, "demo": True}
+        return {"ok": True, "dish": demo_dish(), "demo": True}
 
     user_id = uid_from_init(x_telegram_init_data)
-    db = load_db()
-    u = get_user(db, user_id)
-    apply_bonus(u)
 
-    if not is_trial(u):
-        if u.get("daily_paid") != today():
-            if not charge(u, "daily"):
-                save_db(db)
-                raise HTTPException(402, "NO_TOKENS")
-            u["daily_paid"] = today()
+    with LOCK:
+        db = load_db()
+        u = get_user(db, user_id)
+        apply_bonus(u)
 
-    dish = pick_daily(db, u)
-    save_db(db)
+        if not is_trial(u):
+            if u.get("daily_paid") != today():
+                if not charge(u, "daily"):
+                    save_db(db)
+                    raise HTTPException(402, "NO_TOKENS")
+                u["daily_paid"] = today()
+
+        dish = pick_daily(db, u)
+        save_db(db)
+
     return {"ok": True, "dish": dish, "demo": False}
-
 
 @app.post("/api/action")
 def api_action(payload: Dict[str, Any], x_telegram_init_data: str = Header(default="")):
-    user_id = uid_from_init(x_telegram_init_data)
     action = payload.get("action")
     if action not in ("ingredients", "steps", "time"):
         raise HTTPException(400, "bad action")
+
+    # DEMO: щоб UI в браузері не ламався
+    if not x_telegram_init_data:
+        d = demo_dish()
+        if action == "ingredients":
+            return {"ok": True, "data": d["ingredients"], "demo": True}
+        if action == "steps":
+            return {"ok": True, "data": d["steps"], "demo": True}
+        return {"ok": True, "data": d["time_total_min"], "demo": True}
+
+    user_id = uid_from_init(x_telegram_init_data)
 
     db = load_db()
     u = get_user(db, user_id)
@@ -435,10 +453,9 @@ def api_action(payload: Dict[str, Any], x_telegram_init_data: str = Header(defau
     save_db(db)
 
     if not dish:
-        return {"ok": True, "data": None}
+        return {"ok": True, "data": None, "demo": False}
     if action == "ingredients":
-        return {"ok": True, "data": dish.get("ingredients", [])}
+        return {"ok": True, "data": dish.get("ingredients", []), "demo": False}
     if action == "steps":
-        return {"ok": True, "data": dish.get("steps", [])}
-    return {"ok": True, "data": dish.get("time_total_min", 0)}
-
+        return {"ok": True, "data": dish.get("steps", []), "demo": False}
+    return {"ok": True, "data": dish.get("time_total_min", 0), "demo": False}
