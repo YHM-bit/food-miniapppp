@@ -282,11 +282,20 @@ def uid_from_init(init_data: str) -> int:
     return validate_init_data(init_data, BOT_TOKEN)
 
 
-# -------------------- API --------------------
-
 @app.get("/api/status")
 def api_status(x_telegram_init_data: str = Header(default="")):
-    user_id = uid_from_init(x_telegram_init_data)
+    # ✅ DEMO mode (when opened in browser, no Telegram initData)
+    if not x_telegram_init_data:
+        return {
+            "lang": "uk",
+            "trial": True,
+            "trial_days_left": TRIAL_DAYS,
+            "tokens": 15,
+            "filters": default_filters(),
+            "demo": True
+        }
+
+    user_id = uid(x_telegram_init_data)
     db = load_db()
     u = get_user(db, user_id)
     apply_bonus(u)
@@ -297,7 +306,9 @@ def api_status(x_telegram_init_data: str = Header(default="")):
         "trial_days_left": trial_days_left(u),
         "tokens": u["tokens"],
         "filters": u["filters"],
+        "demo": False
     }
+
 
 @app.post("/api/lang")
 def api_lang(payload: Dict[str, Any], x_telegram_init_data: str = Header(default="")):
@@ -328,24 +339,35 @@ def api_filters(payload: Dict[str, Any], x_telegram_init_data: str = Header(defa
 
 @app.post("/api/daily")
 def api_daily(x_telegram_init_data: str = Header(default="")):
-    user_id = uid_from_init(x_telegram_init_data)
+    # ✅ DEMO mode (browser)
+    if not x_telegram_init_data:
+        # show a static demo dish so UI is never empty
+        dish = {
+            "title": "Demo: Омлет за 10 хв",
+            "why": "Демо-режим (відкрито не в Telegram). Відкрий Mini App через бота для персоналізації.",
+            "ingredients": ["2 яйця", "сіль", "перець", "трохи масла"],
+            "steps": ["Збий яйця з сіллю.", "Розігрій пательню з маслом.", "Вилий яйця, готуй 2-3 хв."],
+            "time_total_min": 10,
+            "tags": ["quick", "high_protein"]
+        }
+        return {"ok": True, "dish": dish, "demo": True}
 
-    with LOCK:
-        db = load_db()
-        u = get_user(db, user_id)
-        apply_bonus(u)
+    user_id = uid(x_telegram_init_data)
+    db = load_db()
+    u = get_user(db, user_id)
+    apply_bonus(u)
 
-        if not is_trial(u):
-            if u.get("daily_paid") != today():
-                if not charge(u, "daily"):
-                    save_db(db)
-                    raise HTTPException(402, "NO_TOKENS")
-                u["daily_paid"] = today()
+    if not is_trial(u):
+        if u.get("daily_paid") != today():
+            if not charge(u, "daily"):
+                save_db(db)
+                raise HTTPException(402, "NO_TOKENS")
+            u["daily_paid"] = today()
 
-        dish = pick_daily(db, u)
-        save_db(db)
+    dish = pick_daily(db, u)
+    save_db(db)
+    return {"ok": True, "dish": dish, "demo": False}
 
-    return {"ok": True, "dish": dish}
 
 @app.post("/api/action")
 def api_action(payload: Dict[str, Any], x_telegram_init_data: str = Header(default="")):
