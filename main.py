@@ -3,10 +3,11 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import parse_qsl
 from typing import Dict, Any, List, Optional
-
 from threading import Lock
+
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 TZ = ZoneInfo("Europe/Uzhgorod")
 DB_PATH = "db.json"
@@ -16,7 +17,6 @@ AI_API_KEY = os.environ.get("AI_API_KEY")
 AI_ENDPOINT = os.environ.get("AI_ENDPOINT", "https://models.github.ai/inference")
 AI_MODEL = os.environ.get("AI_MODEL", "openai/gpt-4o-mini")
 
-# Для Telegram режиму обов'язково:
 if not BOT_TOKEN:
     raise RuntimeError("Set BOT_TOKEN env var.")
 if not AI_API_KEY:
@@ -39,6 +39,14 @@ ALLOWED_TAGS = {
 
 app = FastAPI()
 
+# ✅ IMPORTANT: allow browser/GitHub Pages to call Render API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # можна звузити потім до твого домену
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # -------------------- BASIC ROUTES --------------------
 
@@ -46,6 +54,7 @@ app = FastAPI()
 def health():
     return {
         "ok": True,
+        "origin_hint": "If frontend is on GitHub Pages, API must be absolute URL.",
         "files": {
             "web/index.html": os.path.exists("web/index.html"),
             "index.html": os.path.exists("index.html"),
@@ -63,7 +72,6 @@ def root():
         "<h2>index.html not found</h2><p>Expected: web/index.html</p>",
         status_code=500
     )
-
 
 # -------------------- TIME/DB --------------------
 
@@ -116,7 +124,6 @@ def get_user(db: Dict[str, Any], uid: int) -> Dict[str, Any]:
     u.setdefault("daily_choice", {})
     return u
 
-
 # -------------------- TOKENS/TRIAL --------------------
 
 def is_trial(u: Dict[str, Any]) -> bool:
@@ -142,8 +149,7 @@ def charge(u: Dict[str, Any], feature: str) -> bool:
         return True
     return False
 
-
-# -------------------- DISH FILTERS --------------------
+# -------------------- FILTERS --------------------
 
 def dish_matches_filters(d: Dict[str, Any], f: Dict[str, Any]) -> bool:
     tags = set(d.get("tags", []))
@@ -163,8 +169,7 @@ def dish_matches_filters(d: Dict[str, Any], f: Dict[str, Any]) -> bool:
             return False
     return True
 
-
-# -------------------- AI GENERATION --------------------
+# -------------------- AI / FALLBACK --------------------
 
 def strip_fences(s: str) -> str:
     s = (s or "").strip()
@@ -172,46 +177,41 @@ def strip_fences(s: str) -> str:
     s = re.sub(r"```$", "", s).strip()
     return s
 
-def lang_name(lang: str) -> str:
-    return {"uk": "Ukrainian", "hr": "Croatian", "en": "English"}.get(lang, "Ukrainian")
-
 def fallback_pool(lang: str, n: int = 12) -> List[Dict[str, Any]]:
-    # Багатий фолбек: щоб НІКОЛИ не був тільки омлет
     recipes = {
         "uk": [
-            ("Омлет з сиром", "Швидко і просто.", ["яйця", "сир", "сіль", "перець"], ["Збий яйця", "Додай сир", "Посмаж 5–7 хв"], 10, ["vegetarian", "quick", "high_protein"]),
-            ("Паста з томатами", "Мінімум інгредієнтів.", ["паста", "помідори", "оливкова олія", "сіль"], ["Відвари пасту", "Поріж томати", "Змішай"], 20, ["vegetarian"]),
-            ("Салат з тунцем", "Багато білка.", ["тунець", "огірок", "помідор", "оливкова олія"], ["Наріж овочі", "Додай тунець", "Заправ"], 12, ["pescatarian", "high_protein", "quick"]),
-            ("Вівсянка з бананом", "Легкий сніданок.", ["вівсянка", "банан", "молоко/вода"], ["Залий вівсянку", "Вари 5 хв", "Додай банан"], 8, ["vegetarian", "quick"]),
-            ("Йогурт з ягодами", "Без готування.", ["йогурт", "ягоди", "мед"], ["Змішай інгредієнти"], 5, ["vegetarian", "quick"]),
-            ("Рис з овочами", "Ситно і просто.", ["рис", "овочі", "соєвий соус (опц.)"], ["Відвари рис", "Підсмаж овочі", "Змішай"], 25, ["vegan"]),
-            ("Сендвіч з яйцем", "На перекус.", ["хліб", "яйце", "листя салату"], ["Звари яйце", "Збери сендвіч"], 12, ["quick", "high_protein"]),
-            ("Суп-пюре (швидкий)", "Тепло і легко.", ["овочі", "вода", "сіль"], ["Відвари овочі", "Збий блендером"], 30, ["vegan", "low_calorie"]),
+            ("Омлет з сиром","Швидко і просто.",["яйця","сир","сіль","перець"],["Збий яйця","Додай сир","Посмаж 5–7 хв"],10,["vegetarian","quick","high_protein"]),
+            ("Паста з томатами","Мінімум інгредієнтів.",["паста","помідори","оливкова олія","сіль"],["Відвари пасту","Поріж томати","Змішай"],20,["vegetarian"]),
+            ("Салат з тунцем","Багато білка.",["тунець","огірок","помідор","оливкова олія"],["Наріж овочі","Додай тунець","Заправ"],12,["pescatarian","high_protein","quick"]),
+            ("Вівсянка з бананом","Легкий сніданок.",["вівсянка","банан","молоко/вода"],["Залий вівсянку","Вари 5 хв","Додай банан"],8,["vegetarian","quick"]),
+            ("Йогурт з ягодами","Без готування.",["йогурт","ягоди","мед"],["Змішай інгредієнти"],5,["vegetarian","quick"]),
+            ("Рис з овочами","Ситно і просто.",["рис","овочі","соєвий соус (опц.)"],["Відвари рис","Підсмаж овочі","Змішай"],25,["vegan"]),
+            ("Сендвіч з яйцем","На перекус.",["хліб","яйце","листя салату"],["Звари яйце","Збери сендвіч"],12,["quick","high_protein"]),
+            ("Суп-пюре (швидкий)","Тепло і легко.",["овочі","вода","сіль"],["Відвари овочі","Збий блендером"],30,["vegan","low_calorie"]),
         ],
         "hr": [
-            ("Omlet sa sirom", "Brzo i jednostavno.", ["jaja", "sir", "sol", "papar"], ["Umuti jaja", "Dodaj sir", "Prži 5–7 min"], 10, ["vegetarian", "quick", "high_protein"]),
-            ("Tjestenina s rajčicom", "Minimalno sastojaka.", ["tjestenina", "rajčica", "maslinovo ulje", "sol"], ["Skuhaj tjesteninu", "Nareži rajčicu", "Pomiješaj"], 20, ["vegetarian"]),
-            ("Salata s tunom", "Puno proteina.", ["tuna", "krastavac", "rajčica", "maslinovo ulje"], ["Nareži povrće", "Dodaj tunu", "Začini"], 12, ["pescatarian", "high_protein", "quick"]),
-            ("Zobena kaša s bananom", "Lagani doručak.", ["zob", "banana", "mlijeko/voda"], ["Dodaj tekućinu", "Kuhaj 5 min", "Dodaj bananu"], 8, ["vegetarian", "quick"]),
-            ("Jogurt s bobicama", "Bez kuhanja.", ["jogurt", "bobice", "med"], ["Pomiješaj"], 5, ["vegetarian", "quick"]),
-            ("Riža s povrćem", "Zasitno i jednostavno.", ["riža", "povrće", "soja umak (opc.)"], ["Skuhaj rižu", "Pirjaj povrće", "Pomiješaj"], 25, ["vegan"]),
-            ("Sendvič s jajem", "Brzi snack.", ["kruh", "jaje", "salata"], ["Skuhaj jaje", "Složi sendvič"], 12, ["quick", "high_protein"]),
-            ("Krem juha (brza)", "Toplo i lagano.", ["povrće", "voda", "sol"], ["Skuhaj povrće", "Izmiksaj"], 30, ["vegan", "low_calorie"]),
+            ("Omlet sa sirom","Brzo i jednostavno.",["jaja","sir","sol","papar"],["Umuti jaja","Dodaj sir","Prži 5–7 min"],10,["vegetarian","quick","high_protein"]),
+            ("Tjestenina s rajčicom","Minimalno sastojaka.",["tjestenina","rajčica","maslinovo ulje","sol"],["Skuhaj tjesteninu","Nareži rajčicu","Pomiješaj"],20,["vegetarian"]),
+            ("Salata s tunom","Puno proteina.",["tuna","krastavac","rajčica","maslinovo ulje"],["Nareži povrće","Dodaj tunu","Začini"],12,["pescatarian","high_protein","quick"]),
+            ("Zobena kaša s bananom","Lagani doručak.",["zob","banana","mlijeko/voda"],["Dodaj tekućinu","Kuhaj 5 min","Dodaj bananu"],8,["vegetarian","quick"]),
+            ("Jogurt s bobicama","Bez kuhanja.",["jogurt","bobice","med"],["Pomiješaj"],5,["vegetarian","quick"]),
+            ("Riža s povrćem","Zasitno i jednostavno.",["riža","povrće","soja umak (opc.)"],["Skuhaj rižu","Pirjaj povrće","Pomiješaj"],25,["vegan"]),
+            ("Sendvič s jajem","Brzi snack.",["kruh","jaje","salata"],["Skuhaj jaje","Složi sendvič"],12,["quick","high_protein"]),
+            ("Krem juha (brza)","Toplo i lagano.",["povrće","voda","sol"],["Skuhaj povrće","Izmiksaj"],30,["vegan","low_calorie"]),
         ],
         "en": [
-            ("Cheese omelet", "Fast and simple.", ["eggs", "cheese", "salt", "pepper"], ["Beat eggs", "Add cheese", "Fry 5–7 min"], 10, ["vegetarian", "quick", "high_protein"]),
-            ("Tomato pasta", "Few ingredients.", ["pasta", "tomatoes", "olive oil", "salt"], ["Boil pasta", "Chop tomatoes", "Mix"], 20, ["vegetarian"]),
-            ("Tuna salad", "High protein.", ["tuna", "cucumber", "tomato", "olive oil"], ["Chop veggies", "Add tuna", "Dress"], 12, ["pescatarian", "high_protein", "quick"]),
-            ("Oatmeal with banana", "Easy breakfast.", ["oats", "banana", "milk/water"], ["Add liquid", "Cook 5 min", "Add banana"], 8, ["vegetarian", "quick"]),
-            ("Yogurt with berries", "No cooking.", ["yogurt", "berries", "honey"], ["Mix ingredients"], 5, ["vegetarian", "quick"]),
-            ("Veggie rice", "Simple and filling.", ["rice", "vegetables", "soy sauce (opt.)"], ["Cook rice", "Saute veggies", "Mix"], 25, ["vegan"]),
-            ("Egg sandwich", "Quick snack.", ["bread", "egg", "lettuce"], ["Boil egg", "Assemble sandwich"], 12, ["quick", "high_protein"]),
-            ("Quick veggie soup", "Warm and light.", ["vegetables", "water", "salt"], ["Boil veggies", "Blend"], 30, ["vegan", "low_calorie"]),
+            ("Cheese omelet","Fast and simple.",["eggs","cheese","salt","pepper"],["Beat eggs","Add cheese","Fry 5–7 min"],10,["vegetarian","quick","high_protein"]),
+            ("Tomato pasta","Few ingredients.",["pasta","tomatoes","olive oil","salt"],["Boil pasta","Chop tomatoes","Mix"],20,["vegetarian"]),
+            ("Tuna salad","High protein.",["tuna","cucumber","tomato","olive oil"],["Chop veggies","Add tuna","Dress"],12,["pescatarian","high_protein","quick"]),
+            ("Oatmeal with banana","Easy breakfast.",["oats","banana","milk/water"],["Add liquid","Cook 5 min","Add banana"],8,["vegetarian","quick"]),
+            ("Yogurt with berries","No cooking.",["yogurt","berries","honey"],["Mix ingredients"],5,["vegetarian","quick"]),
+            ("Veggie rice","Simple and filling.",["rice","vegetables","soy sauce (opt.)"],["Cook rice","Saute veggies","Mix"],25,["vegan"]),
+            ("Egg sandwich","Quick snack.",["bread","egg","lettuce"],["Boil egg","Assemble sandwich"],12,["quick","high_protein"]),
+            ("Quick veggie soup","Warm and light.",["vegetables","water","salt"],["Boil veggies","Blend"],30,["vegan","low_calorie"]),
         ],
     }
     base = recipes.get(lang, recipes["uk"])
-
-    out: List[Dict[str, Any]] = []
+    out = []
     for i in range(n):
         title, why, ing, steps, tmin, tags = base[i % len(base)]
         if i >= len(base):
@@ -226,117 +226,53 @@ def fallback_pool(lang: str, n: int = 12) -> List[Dict[str, Any]]:
         })
     return out
 
-def ai_pool(lang: str, forbidden: List[str], n: int = 12) -> List[Dict[str, Any]]:
-    """
-    AI -> якщо не працює (403/мережа/помилка) -> fallback_pool.
-    """
-    try:
-        from openai import OpenAI
-        client = OpenAI(base_url=AI_ENDPOINT, api_key=AI_API_KEY)
-
-        forb = ", ".join(forbidden[-120:])
-        system = "You are a creative chef. Output ONLY valid JSON array. No markdown."
-        user = f"""
-Generate {n} different dish ideas in {lang_name(lang)}.
-Forbidden titles: [{forb}]
-
-Return JSON ARRAY of objects with keys:
-title, why, ingredients[], steps[], time_total_min, tags[]
-tags MUST be English from: {sorted(list(ALLOWED_TAGS))}
-Only JSON ARRAY.
-""".strip()
-
-        r = client.chat.completions.create(
-            model=AI_MODEL,
-            messages=[{"role":"system","content":system},{"role":"user","content":user}],
-            temperature=1.1,
-        )
-
-        data = json.loads(strip_fences(r.choices[0].message.content or "[]"))
-        out: List[Dict[str, Any]] = []
-        for it in data:
-            if not isinstance(it, dict):
-                continue
-            title = str(it.get("title","")).strip()
-            if not title:
-                continue
-            tags = [t for t in (it.get("tags") or []) if t in ALLOWED_TAGS]
-            out.append({
-                "title": title[:80],
-                "why": str(it.get("why",""))[:240],
-                "ingredients": [str(x)[:120] for x in (it.get("ingredients") or []) if str(x).strip()],
-                "steps": [str(x)[:200] for x in (it.get("steps") or []) if str(x).strip()],
-                "time_total_min": int(it.get("time_total_min",30) or 30),
-                "tags": tags,
-            })
-
-        if len(out) < 5:
-            return fallback_pool(lang, n)
-        return out[:n]
-    except Exception:
-        return fallback_pool(lang, n)
-
 def get_pool(db: Dict[str, Any], lang: str) -> List[Dict[str, Any]]:
     d = today()
     db.setdefault("daily", {}).setdefault(d, {})
-
     if lang in db["daily"][d] and isinstance(db["daily"][d][lang].get("pool"), list):
         return db["daily"][d][lang]["pool"]
-
-    db.setdefault("used_titles", {}).setdefault(lang, [])
-    pool = ai_pool(lang, db["used_titles"][lang], 12)
-
+    pool = fallback_pool(lang, 12)  # щоб гарантовано працювало
     db["daily"][d][lang] = {"pool": pool, "generated_at": now().isoformat()}
-    for x in pool:
-        db["used_titles"][lang].append(x["title"])
-    db["used_titles"][lang] = db["used_titles"][lang][-700:]
     return pool
 
-def pick_daily(db: Dict[str, Any], u: Dict[str, Any], reset: bool = False) -> Optional[Dict[str, Any]]:
+def pick_daily(db: Dict[str, Any], u: Dict[str, Any], reset: bool) -> Optional[Dict[str, Any]]:
     lang = u.get("lang", "uk")
     pool = get_pool(db, lang)
     f = u.get("filters", default_filters())
-
     matches = [i for i, d in enumerate(pool) if dish_matches_filters(d, f)]
     if not matches:
         return None
 
     d = today()
     u.setdefault("daily_choice", {})
-
     if reset:
         u["daily_choice"].pop(d, None)
 
-    # Якщо є вибір на сьогодні і він ще підходить під фільтри — повертаємо його
-    if d in u["daily_choice"]:
-        idx = u["daily_choice"][d]
-        if isinstance(idx, int) and 0 <= idx < len(pool) and idx in matches:
-            return pool[idx]
+    # якщо вже вибрано — повертаємо
+    idx = u["daily_choice"].get(d)
+    if isinstance(idx, int) and idx in matches:
+        return pool[idx]
 
-    # Інакше вибираємо випадково
+    # інакше випадково
     idx = random.choice(matches)
     u["daily_choice"][d] = idx
     return pool[idx]
 
-
-# -------------------- TELEGRAM INITDATA VERIFY --------------------
+# -------------------- TELEGRAM INITDATA --------------------
 
 def validate_init_data(init_data: str, bot_token: str, max_age_sec: int = 86400) -> int:
     pairs = dict(parse_qsl(init_data, keep_blank_values=True))
     recv_hash = pairs.pop("hash", None)
     if not recv_hash:
         raise HTTPException(401, "No hash")
-
     data_check_string = "\n".join([f"{k}={pairs[k]}" for k in sorted(pairs.keys())])
     secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
     calc_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
     if calc_hash != recv_hash:
         raise HTTPException(401, "Bad signature")
-
     auth_date = int(pairs.get("auth_date", "0"))
     if auth_date and (now().timestamp() - auth_date) > max_age_sec:
         raise HTTPException(401, "InitData expired")
-
     user_raw = pairs.get("user")
     if not user_raw:
         raise HTTPException(401, "No user")
@@ -348,155 +284,111 @@ def uid_from_init(init_data: str) -> int:
         raise HTTPException(401, "Missing initData")
     return validate_init_data(init_data, BOT_TOKEN)
 
-
 # -------------------- API --------------------
 
 @app.get("/api/status")
 def api_status(x_telegram_init_data: str = Header(default="")):
-    # DEMO mode in browser
     if not x_telegram_init_data:
-        return {
-            "lang": "uk",
-            "trial": True,
-            "trial_days_left": TRIAL_DAYS,
-            "tokens": 15,
-            "filters": default_filters(),
-            "demo": True
-        }
-
+        return {"lang":"uk","trial":True,"trial_days_left":TRIAL_DAYS,"tokens":15,"filters":default_filters(),"demo":True}
     user_id = uid_from_init(x_telegram_init_data)
     with LOCK:
         db = load_db()
         u = get_user(db, user_id)
         apply_bonus(u)
         save_db(db)
-
-    return {
-        "lang": u["lang"],
-        "trial": is_trial(u),
-        "trial_days_left": trial_days_left(u),
-        "tokens": u["tokens"],
-        "filters": u["filters"],
-        "demo": False
-    }
+    return {"lang":u["lang"],"trial":is_trial(u),"trial_days_left":trial_days_left(u),"tokens":u["tokens"],"filters":u["filters"],"demo":False}
 
 @app.post("/api/lang")
 def api_lang(payload: Dict[str, Any], x_telegram_init_data: str = Header(default="")):
-    # DEMO: дозволяємо змінювати без Telegram (але не зберігаємо в db)
-    if not x_telegram_init_data:
-        lang = payload.get("lang", "uk")
-        if lang not in ("uk", "hr", "en"):
-            lang = "uk"
-        return {"ok": True, "demo": True, "lang": lang}
-
-    user_id = uid_from_init(x_telegram_init_data)
-    lang = payload.get("lang", "uk")
-    if lang not in ("uk", "hr", "en"):
+    lang = payload.get("lang","uk")
+    if lang not in ("uk","hr","en"):
         lang = "uk"
 
+    if not x_telegram_init_data:
+        return {"ok":True,"demo":True,"lang":lang}
+
+    user_id = uid_from_init(x_telegram_init_data)
     with LOCK:
         db = load_db()
         u = get_user(db, user_id)
         u["lang"] = lang
-        # після зміни мови — обнуляємо вибір страви, щоб показати в новій мові
         u.setdefault("daily_choice", {}).pop(today(), None)
         save_db(db)
-
-    return {"ok": True, "demo": False}
+    return {"ok":True,"demo":False,"lang":lang}
 
 @app.post("/api/filters")
 def api_filters(payload: Dict[str, Any], x_telegram_init_data: str = Header(default="")):
-    # DEMO: дозволяємо без Telegram (не зберігаємо в db)
     if not x_telegram_init_data:
-        return {"ok": True, "demo": True}
-
+        return {"ok":True,"demo":True}
     user_id = uid_from_init(x_telegram_init_data)
     with LOCK:
         db = load_db()
         u = get_user(db, user_id)
-
         f = u.get("filters", default_filters())
         for k in f.keys():
             if k in payload:
                 f[k] = payload[k]
         u["filters"] = f
-
-        # після зміни фільтрів — обнуляємо вибір, щоб одразу підібрало нову страву
         u.setdefault("daily_choice", {}).pop(today(), None)
         save_db(db)
-
-    return {"ok": True, "demo": False}
+    return {"ok":True,"demo":False}
 
 @app.post("/api/daily")
 def api_daily(payload: Dict[str, Any] = None, x_telegram_init_data: str = Header(default="")):
     payload = payload or {}
     reset = bool(payload.get("reset", False))
+    lang_demo = payload.get("lang","uk")
+    if lang_demo not in ("uk","hr","en"):
+        lang_demo = "uk"
 
-    # DEMO browser
     if not x_telegram_init_data:
-        # Підтримка мови демо: якщо фронт передасть lang — використаємо
-        lang = payload.get("lang", "uk")
-        if lang not in ("uk", "hr", "en"):
-            lang = "uk"
-        pool = fallback_pool(lang, 12)
-        return {"ok": True, "dish": random.choice(pool), "demo": True}
+        pool = fallback_pool(lang_demo, 12)
+        return {"ok":True,"dish":random.choice(pool),"demo":True}
 
     user_id = uid_from_init(x_telegram_init_data)
-
     with LOCK:
         db = load_db()
         u = get_user(db, user_id)
         apply_bonus(u)
-
         if not is_trial(u):
             if u.get("daily_paid") != today():
                 if not charge(u, "daily"):
                     save_db(db)
                     raise HTTPException(402, "NO_TOKENS")
                 u["daily_paid"] = today()
-
         dish = pick_daily(db, u, reset=reset)
         save_db(db)
-
-    return {"ok": True, "dish": dish, "demo": False}
+    return {"ok":True,"dish":dish,"demo":False}
 
 @app.post("/api/action")
 def api_action(payload: Dict[str, Any], x_telegram_init_data: str = Header(default="")):
-    # DEMO: працює без токенів, просто показує дані
+    action = payload.get("action")
+    if action not in ("ingredients","steps","time"):
+        raise HTTPException(400,"bad action")
+
+    lang_demo = payload.get("lang","uk")
+    if lang_demo not in ("uk","hr","en"):
+        lang_demo = "uk"
+
     if not x_telegram_init_data:
-        action = payload.get("action")
-        lang = payload.get("lang", "uk")
-        pool = fallback_pool(lang, 12)
-        dish = random.choice(pool)
-        if action == "ingredients":
-            return {"ok": True, "data": dish["ingredients"], "demo": True}
-        if action == "steps":
-            return {"ok": True, "data": dish["steps"], "demo": True}
-        if action == "time":
-            return {"ok": True, "data": dish["time_total_min"], "demo": True}
-        raise HTTPException(400, "bad action")
+        dish = random.choice(fallback_pool(lang_demo, 12))
+        if action == "ingredients": return {"ok":True,"data":dish["ingredients"],"demo":True}
+        if action == "steps": return {"ok":True,"data":dish["steps"],"demo":True}
+        return {"ok":True,"data":dish["time_total_min"],"demo":True}
 
     user_id = uid_from_init(x_telegram_init_data)
-    action = payload.get("action")
-    if action not in ("ingredients", "steps", "time"):
-        raise HTTPException(400, "bad action")
-
     with LOCK:
         db = load_db()
         u = get_user(db, user_id)
         apply_bonus(u)
-
         if not charge(u, action):
             save_db(db)
             raise HTTPException(402, "NO_TOKENS")
-
         dish = pick_daily(db, u, reset=False)
         save_db(db)
 
     if not dish:
-        return {"ok": True, "data": None, "demo": False}
-    if action == "ingredients":
-        return {"ok": True, "data": dish.get("ingredients", []), "demo": False}
-    if action == "steps":
-        return {"ok": True, "data": dish.get("steps", []), "demo": False}
-    return {"ok": True, "data": dish.get("time_total_min", 0), "demo": False}
+        return {"ok":True,"data":None,"demo":False}
+    if action == "ingredients": return {"ok":True,"data":dish.get("ingredients",[]),"demo":False}
+    if action == "steps": return {"ok":True,"data":dish.get("steps",[]),"demo":False}
+    return {"ok":True,"data":dish.get("time_total_min",0),"demo":False}
