@@ -16,7 +16,7 @@ AI_API_KEY = os.environ.get("AI_API_KEY")  # (не використовуєть�
 AI_ENDPOINT = os.environ.get("AI_ENDPOINT", "https://models.github.ai/inference")
 AI_MODEL = os.environ.get("AI_MODEL", "openai/gpt-4o-mini")
 
-# Для прод можна не падати, але краще хай видно проблему
+
 if not BOT_TOKEN:
     raise RuntimeError("Set BOT_TOKEN env var.")
 
@@ -38,7 +38,7 @@ ALLOWED_TAGS = {
 app = FastAPI()
 
 
-# -------------------- BASIC ROUTES --------------------
+
 
 @app.get("/health")
 def health():
@@ -64,7 +64,7 @@ def root():
     )
 
 
-# -------------------- TIME/DB --------------------
+
 
 def now() -> datetime:
     return datetime.now(TZ)
@@ -84,13 +84,13 @@ def save_db(db: Dict[str, Any]) -> None:
 
 def default_filters() -> Dict[str, Any]:
     return {
-        "diet": "any",              # any | vegetarian | vegan | pescatarian
+        "diet": "any",              
         "gluten_free": False,
         "lactose_free": False,
         "high_protein": False,
         "low_calorie": False,
-        "max_time": 0,              # minutes; 0 = unlimited
-        "exclude": [],              # list[str]
+        "max_time": 0,              
+        "exclude": [],              
     }
 
 def get_user(db: Dict[str, Any], uid: int) -> Dict[str, Any]:
@@ -107,7 +107,7 @@ def get_user(db: Dict[str, Any], uid: int) -> Dict[str, Any]:
             "daily_paid": "",
             "favorites": [],
             "uploads": [],
-            "last_dish_sig": "",   # щоб не повторювало одне й те саме
+            "last_dish_sig": "",  
         }
     u = db["users"][suid]
     u.setdefault("favorites", [])
@@ -119,7 +119,7 @@ def get_user(db: Dict[str, Any], uid: int) -> Dict[str, Any]:
     return u
 
 
-# -------------------- TOKENS/TRIAL --------------------
+
 
 def is_trial(u: Dict[str, Any]) -> bool:
     return now() < datetime.fromisoformat(u["trial_until"])
@@ -145,7 +145,7 @@ def charge(u: Dict[str, Any], feature: str) -> bool:
     return False
 
 
-# -------------------- HELPERS (LANG / TEXT) --------------------
+
 
 def _tr(lang: str, uk: str, hr: str, en: str) -> str:
     if lang == "hr":
@@ -196,7 +196,7 @@ def _pick_distinct(rng: random.Random, options: List[str], k: int) -> List[str]:
     return opts[:k]
 
 
-# -------------------- DISH FILTERS --------------------
+
 
 def dish_matches_filters(d: Dict[str, Any], f: Dict[str, Any]) -> bool:
     tags = set(d.get("tags", []))
@@ -217,7 +217,7 @@ def dish_matches_filters(d: Dict[str, Any], f: Dict[str, Any]) -> bool:
     return True
 
 
-# -------------------- FAST "MINI AI" GENERATOR --------------------
+
 
 def _build_title(lang: str, diet: str, f: Dict[str, Any], rng: random.Random) -> str:
     quick = f.get("max_time", 0) and int(f.get("max_time", 0)) <= 15
@@ -234,7 +234,7 @@ def _build_title(lang: str, diet: str, f: Dict[str, Any], rng: random.Random) ->
         _tr(lang, "рис", "riža", "rice"),
     ]
 
-    # gluten free: avoid pasta/bread vibes
+    
     if f.get("gluten_free"):
         variants = [v for v in variants if v not in [_tr(lang, "паста","tjestenina","pasta")]]
 
@@ -252,7 +252,7 @@ def _build_ingredients(lang: str, diet: str, f: Dict[str, Any], rng: random.Rand
         opts = [o for o in options if (o and not _contains_any(o, excl))]
         return rng.choice(opts) if opts else ""
 
-    # --- Pools (names only, qty decided later) ---
+    
     proteins = {
         "vegan": [
             _tr(lang,"тофу","tofu","tofu"),
@@ -317,7 +317,7 @@ def _build_ingredients(lang: str, diet: str, f: Dict[str, Any], rng: random.Rand
     if diet not in ("vegetarian","vegan","pescatarian"):
         diet = "any"
 
-    # lactose_free: remove dairy proteins + dairy sauces
+   
     p_list = proteins[diet][:]
     if f.get("lactose_free"):
         p_list = [p for p in p_list if not _contains_any(p, ["сир","йогурт","cheese","yogurt","sir","jogurt","vrhnje"])]
@@ -325,7 +325,7 @@ def _build_ingredients(lang: str, diet: str, f: Dict[str, Any], rng: random.Rand
     else:
         sauce_pool = sauces + dairy_sauces
 
-    # gluten_free: carb pool
+    
     carb_pool = carbs_gf[:] if f.get("gluten_free") else carbs[:]
 
     prot = pick_from(p_list) or pick_from(proteins["any"])
@@ -333,7 +333,7 @@ def _build_ingredients(lang: str, diet: str, f: Dict[str, Any], rng: random.Rand
     veg_pick = _pick_distinct(rng, _avoid_exclude(veggies, excl), 3)
     sauce = pick_from(sauce_pool)
 
-    # --- quantities based on macros flags ---
+    
     protein_qty = _qty(lang, "120–180 г", "120–180 g", "120–180 g")
     if f.get("high_protein"):
         protein_qty = _qty(lang, "180–250 г", "180–250 g", "180–250 g")
@@ -346,7 +346,7 @@ def _build_ingredients(lang: str, diet: str, f: Dict[str, Any], rng: random.Rand
     oil_qty = _qty(lang, "1 ст. л.", "1 žlica", "1 tbsp")
     sauce_qty = _qty(lang, "1–2 ст. л.", "1–2 žlice", "1–2 tbsp")
 
-    # specific tweaks
+    
     if _contains_any(prot, ["яйц", "egg", "jaja"]):
         protein_qty = _qty(lang, "2–3 шт", "2–3 kom", "2–3 pcs")
     if _contains_any(prot, ["тунець", "tuna", "сардин", "srdele", "sardines"]):
@@ -486,7 +486,7 @@ def _estimate_time(f: Dict[str, Any], rng: random.Random) -> int:
     max_time = int(f.get("max_time", 0) or 0)
     if max_time:
         return max(8, min(max_time, rng.randint(8, max_time)))
-    # otherwise pick reasonable 10-25
+    
     return rng.randint(10, 25)
 
 def _tags_for_filters(f: Dict[str, Any]) -> List[str]:
@@ -497,7 +497,7 @@ def _tags_for_filters(f: Dict[str, Any]) -> List[str]:
     for k in ("gluten_free","lactose_free","high_protein","low_calorie"):
         if f.get(k):
             tags.append(k)
-    # de-dup + allowlist
+   
     out = []
     for t in tags:
         if t in ALLOWED_TAGS and t not in out:
@@ -518,13 +518,13 @@ def generate_dish_for_user(u: Dict[str, Any], refresh_seed: Optional[str] = None
     f = u.get("filters") or default_filters()
     diet = f.get("diet", "any")
 
-    # Seed: user + date + filters + optional refresh_seed
+   
     seed_base = f"{u.get('created_at','')}-{today()}-{lang}-{json.dumps(f, sort_keys=True)}"
     if refresh_seed:
         seed_base += f"-{refresh_seed}"
     rng = random.Random(hashlib.sha256(seed_base.encode("utf-8")).hexdigest())
 
-    # Generate dish candidate(s) until it differs from last_dish_sig (try a few times)
+    
     last_sig = u.get("last_dish_sig", "")
     for _ in range(6):
         title = _build_title(lang, diet, f, rng)
@@ -549,7 +549,7 @@ def generate_dish_for_user(u: Dict[str, Any], refresh_seed: Optional[str] = None
             "tags": tags,
         }
 
-        # strict filter check (exclude words etc.)
+       
         if not dish_matches_filters(dish, f):
             continue
 
@@ -558,7 +558,7 @@ def generate_dish_for_user(u: Dict[str, Any], refresh_seed: Optional[str] = None
             u["last_dish_sig"] = sig
             return dish
 
-    # fallback (still return something)
+    
     u["last_dish_sig"] = ""
     return {
         "title": _tr(lang, "Страва дня: демо", "Jelo dana: demo", "Dish of the day: demo"),
@@ -570,7 +570,7 @@ def generate_dish_for_user(u: Dict[str, Any], refresh_seed: Optional[str] = None
     }
 
 
-# -------------------- TELEGRAM INITDATA VERIFY --------------------
+
 
 def validate_init_data(init_data: str, bot_token: str, max_age_sec: int = 86400) -> int:
     pairs = dict(parse_qsl(init_data, keep_blank_values=True))
@@ -600,11 +600,11 @@ def uid_from_init(init_data: str) -> int:
     return validate_init_data(init_data, BOT_TOKEN)
 
 
-# -------------------- API --------------------
+
 
 @app.get("/api/status")
 def api_status(x_telegram_init_data: str = Header(default="")):
-    # DEMO mode (browser)
+    
     if not x_telegram_init_data:
         return {
             "lang": "uk",
@@ -653,12 +653,12 @@ def api_filters(payload: Dict[str, Any], x_telegram_init_data: str = Header(defa
     for k in f.keys():
         if k in payload:
             f[k] = payload[k]
-    # normalize exclude
+    
     if isinstance(f.get("exclude"), str):
         f["exclude"] = [x.strip() for x in f["exclude"].split(",") if x.strip()]
     u["filters"] = f
 
-    # reset last dish so next daily can differ
+    
     u["last_dish_sig"] = ""
     save_db(db)
     return {"ok": True}
@@ -666,9 +666,9 @@ def api_filters(payload: Dict[str, Any], x_telegram_init_data: str = Header(defa
 
 @app.post("/api/daily")
 def api_daily(payload: Dict[str, Any] = None, x_telegram_init_data: str = Header(default="")):
-    # DEMO mode (browser)
+    
     if not x_telegram_init_data:
-        # allow refresh seed for demo too
+       
         refresh_seed = None
         if isinstance(payload, dict):
             refresh_seed = payload.get("refresh_seed")
@@ -684,7 +684,7 @@ def api_daily(payload: Dict[str, Any] = None, x_telegram_init_data: str = Header
 
     user_id = uid_from_init(x_telegram_init_data)
 
-    # refresh seed from payload (when user presses refresh)
+    
     refresh_seed = None
     if isinstance(payload, dict):
         refresh_seed = payload.get("refresh_seed")
@@ -722,7 +722,7 @@ def api_action(payload: Dict[str, Any], x_telegram_init_data: str = Header(defau
         save_db(db)
         raise HTTPException(402, "NO_TOKENS")
 
-    # return current generated dish (do not change on action)
+    
     dish = generate_dish_for_user(u, refresh_seed=None)
     save_db(db)
 
