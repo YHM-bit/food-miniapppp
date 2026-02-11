@@ -72,7 +72,7 @@
       padding:14px;
     }
 
-    /* Wallet-like big balance */
+    
     .balanceBlock{
       padding:18px 16px;
       border-radius: 22px;
@@ -111,7 +111,7 @@
       gap:8px;
     }
 
-    /* Action buttons like wallet */
+    
     .actionRow{
       display:grid;
       grid-template-columns: repeat(3, minmax(0,1fr));
@@ -135,7 +135,7 @@
     .actionIcon{font-size:18px; display:block; margin-bottom:6px;}
     .actionSub{font-size:11px;color:var(--muted);font-weight:700;margin-top:2px}
 
-    /* List items (wallet style) */
+    
     .list{
       display:flex;
       flex-direction:column;
@@ -170,11 +170,11 @@
     .itemDesc{font-size:12px; color:var(--muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
     .chev{color:var(--muted); font-weight:900;}
 
-    /* Tabs content */
+    
     .tab{display:none;}
     .tab.active{display:block;}
 
-    /* Dish card */
+    
     .dish{
       margin-top:12px;
       border:1px solid var(--stroke);
@@ -199,7 +199,7 @@
     }
     .dishWhy{margin:10px 0 0 0; color:var(--muted); font-size:13px; line-height:1.45}
 
-    /* Content output */
+    
     .out{
       margin-top:12px;
       border:1px solid var(--stroke);
@@ -211,7 +211,7 @@
     .outTitle{font-weight:950; font-size:13px}
     pre{white-space:pre-wrap; margin:10px 0 0 0; font-size:13px; line-height:1.45}
 
-    /* Filters (as separate tab like wallet) */
+   
     .formGrid{
       display:grid;
       grid-template-columns: 1fr 1fr;
@@ -234,7 +234,7 @@
       outline:none;
     }
 
-    /* ✅ PATCH #1 */
+    
     option{color:inherit}
 
     .checks{
@@ -272,7 +272,7 @@
     }
     .btn:active{ transform: scale(.98); }
 
-    /* Bottom tab bar */
+    
     .tabbar{
       position:fixed;
       left:0; right:0; bottom:0;
@@ -337,7 +337,7 @@
       </div>
     </div>
 
-    <!-- TAB: HOME -->
+    
     <div class="tab active" id="tab_home">
       <div class="balanceBlock fade">
         <div class="balanceK" id="balK">Общий баланс</div>
@@ -397,7 +397,7 @@
       </div>
     </div>
 
-    <!-- TAB: RECIPE -->
+    
     <div class="tab" id="tab_recipe">
       <div class="card fade">
         <div style="font-weight:950; font-size:14px" id="recH">Рецепт</div>
@@ -425,7 +425,7 @@
       </div>
     </div>
 
-    <!-- TAB: FILTERS -->
+    
     <div class="tab" id="tab_filters">
       <div class="card fade">
         <div style="font-weight:950; font-size:14px" id="filH">Налаштування</div>
@@ -481,7 +481,7 @@
       </div>
     </div>
 
-    <!-- TAB: WALLET -->
+    
     <div class="tab" id="tab_wallet">
       <div class="balanceBlock fade">
         <div class="balanceK" id="wK">Баланс</div>
@@ -540,7 +540,7 @@
     </div>
   </div>
 
-  <!-- Bottom tab bar -->
+ 
   <div class="tabbar">
     <div class="tabbarInner">
       <div class="tabbtn active" data-tab="home"><div class="ic">🏠</div><div class="lb" id="tbHome">Головна</div></div>
@@ -555,7 +555,7 @@
   tg?.ready();
   tg?.expand();
 
-  // ---------- THEME ----------
+  
   function isDarkByScheme(){
     return (tg?.colorScheme === "dark") || (window.matchMedia("(prefers-color-scheme: dark)").matches);
   }
@@ -567,7 +567,7 @@
     const bg = p.bg_color || (dark ? "#0b0f14" : "#f7f8fc");
     const text = p.text_color || (dark ? "#e9eef5" : "#0f172a");
 
-    // ✅ muted stable per dark/light
+    
     const muted = dark ? "rgba(233,238,245,.72)" : "rgba(15,23,42,.58)";
 
     const accent = p.button_color || (dark ? "#4da3ff" : "#2b7cff");
@@ -593,7 +593,7 @@
   applyTheme();
   try { tg?.onEvent?.("themeChanged", applyTheme); } catch(e){}
 
-  // ---------- i18n ----------
+  
   const I18N = {
     uk: {
       uiTitle:"Najjednostavniji recepti",
@@ -645,7 +645,7 @@
       noDish:"Немає страви під ці фільтри",
       noTokens:"Немає токенів 😕",
 
-      // ✅ POPUPS (Wallet)
+      
       popup_buy_title:"Купити токени",
       popup_buy_msg:"Зараз це заглушка.\nДалі підключимо оплату через Telegram Stars.",
       popup_bonus_title:"Бонус",
@@ -707,7 +707,7 @@
       noDish:"Nema jela za ove filtre",
       noTokens:"Nema tokena 😕",
 
-      // ✅ POPUPS (Wallet)
+      
       popup_buy_title:"Kupi tokene",
       popup_buy_msg:"Trenutno je ovo demo.\nKasnije povezujemo plaćanje preko Telegram Stars.",
       popup_bonus_title:"Bonus",
@@ -769,7 +769,7 @@
       noDish:"No dish matches these filters",
       noTokens:"No tokens 😕",
 
-      // ✅ POPUPS (Wallet)
+      
       popup_buy_title:"Buy tokens",
       popup_buy_msg:"This is a placeholder for now.\nNext we’ll connect Telegram Stars payments.",
       popup_bonus_title:"Bonus",
@@ -841,7 +841,7 @@
     setText("wPricesD", t.pricesD);
   }
 
-  // ---------- API ----------
+  
   async function api(path, method="GET", body=null){
     const initData = tg?.initData || "";
     const res = await fetch(path, {
@@ -871,7 +871,7 @@
     }
   }
 
-  // ---------- Render ----------
+  
   function renderDish(dish){
     DISH = dish;
     const b1 = document.getElementById("dishBox");
@@ -915,7 +915,7 @@
     box.style.display = "block";
   }
 
-  // ---------- Status ----------
+  
   function setStatusText(){
     if(!STATUS) return;
     const st = document.getElementById("statusText");
@@ -959,7 +959,7 @@
     });
   }
 
-  // ---------- Actions ----------
+  
   async function loadDaily(auto=false){
     const t = I18N[LANG] || I18N.uk;
     try{
@@ -1004,7 +1004,7 @@
     }
   }
 
-  // ---------- Tabs ----------
+
   function setTab(name){
     ["home","recipe","filters","wallet"].forEach(x=>{
       document.getElementById("tab_"+x).classList.toggle("active", x===name);
@@ -1017,7 +1017,7 @@
     btn.addEventListener("click", ()=> setTab(btn.dataset.tab));
   });
 
-  // ---------- Wire UI ----------
+
   document.getElementById("btnDaily").onclick = ()=> loadDaily(false);
   document.getElementById("btnRecipe").onclick = ()=> setTab("recipe");
   document.getElementById("btnWallet").onclick = ()=> setTab("wallet");
@@ -1028,7 +1028,7 @@
 
   document.getElementById("goFilters").onclick = ()=> setTab("filters");
   document.getElementById("goHow").onclick = ()=>{
-    // (optional) could also i18n this later
+    
     showPopup("Як працює", "🎁 Trial 7 днів: всі функції безкоштовні.\nПісля trial: дії списують токени.\nЩодня є бонус, але з лімітом.");
   };
 
@@ -1060,7 +1060,7 @@
     await loadDaily(true);
   };
 
-  // ✅ Wallet popups NOW use selected language
+  
   document.getElementById("btnBuy").onclick = ()=>{
     const t = I18N[LANG] || I18N.uk;
     showPopup(t.popup_buy_title, t.popup_buy_msg);
@@ -1088,7 +1088,7 @@
     showPopup(t.popup_prices_title, t.popup_prices_msg);
   };
 
-  // ---------- Init ----------
+  
   (async ()=>{
     try{
       await refreshStatus();
