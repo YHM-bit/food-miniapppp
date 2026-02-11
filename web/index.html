@@ -8,309 +8,63 @@
   <title>Cook Today</title>
 
   <style>
-    :root{
-      --bg: #0b0f14;
-      --bg2:#070a0f;
-      --text:#e9eef5;
-      --muted:rgba(233,238,245,.70);
-      --card: rgba(255,255,255,.06);
-      --card2: rgba(255,255,255,.04);
-      --stroke: rgba(255,255,255,.10);
-      --shadow: 0 16px 40px rgba(0,0,0,.35);
-      --accent:#4da3ff;
-      --accent2:#7c5cff;
-      --good:#3ddc97;
-      --danger:#ff5c7a;
-      --radius:18px;
-      --tabH: 78px;
-    }
-
+    :root{--bg:#0b0f14;--bg2:#070a0f;--text:#e9eef5;--muted:rgba(233,238,245,.70);--card:rgba(255,255,255,.06);--card2:rgba(255,255,255,.04);--stroke:rgba(255,255,255,.10);--shadow:0 16px 40px rgba(0,0,0,.35);--accent:#4da3ff;--accent2:#7c5cff;--radius:18px;--tabH:78px;}
     *{box-sizing:border-box}
-    body{
-      margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      color:var(--text);
-      background:
-        radial-gradient(900px 600px at 10% -5%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 60%),
-        radial-gradient(800px 500px at 110% 10%, color-mix(in srgb, var(--accent2) 22%, transparent), transparent 62%),
-        radial-gradient(900px 700px at 40% 120%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%),
-        linear-gradient(180deg, var(--bg), var(--bg2));
-      min-height:100vh;
-    }
-
-    .wrap{
-      max-width:760px;
-      margin:0 auto;
-      padding:16px 14px calc(var(--tabH) + 18px);
-    }
-
-    .header{
-      display:flex;
-      justify-content:space-between;
-      align-items:flex-start;
-      gap:12px;
-      margin-bottom:14px;
-    }
-    .title{
-      margin:0;
-      font-size:22px;
-      font-weight:900;
-      letter-spacing:.2px;
-    }
-    .sub{
-      margin:6px 0 0 0;
-      color:var(--muted);
-      font-size:13px;
-      line-height:1.35;
-    }
-
-    .card{
-      border:1px solid var(--stroke);
-      border-radius:var(--radius);
-      background: linear-gradient(180deg, var(--card), var(--card2));
-      box-shadow: var(--shadow);
-      padding:14px;
-    }
-
-    .balanceBlock{
-      padding:18px 16px;
-      border-radius: 22px;
-      border:1px solid var(--stroke);
-      background: linear-gradient(180deg, color-mix(in srgb, var(--card) 110%, transparent), var(--card2));
-      box-shadow: 0 18px 48px rgba(0,0,0,.25);
-      margin-bottom:14px;
-    }
-    .balanceK{
-      font-size:12px;
-      color:var(--muted);
-      margin-bottom:8px;
-    }
-    .balanceV{
-      font-size:38px;
-      font-weight:1000;
-      letter-spacing: .6px;
-      line-height:1;
-    }
-    .balanceMeta{
-      margin-top:10px;
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      align-items:center;
-      color:var(--muted);
-      font-size:12px;
-    }
-    .pill{
-      padding:6px 10px;
-      border-radius:999px;
-      border:1px solid var(--stroke);
-      background: color-mix(in srgb, var(--card) 130%, transparent);
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-    }
-
-    .actionRow{
-      display:grid;
-      grid-template-columns: repeat(3, minmax(0,1fr));
-      gap:10px;
-      margin-top:14px;
-    }
-    .actionBtn{
-      border:1px solid var(--stroke);
-      background: color-mix(in srgb, var(--card) 120%, transparent);
-      color:var(--text);
-      border-radius:16px;
-      padding:12px 10px;
-      font-weight:800;
-      text-align:center;
-      cursor:pointer;
-      user-select:none;
-      transition: transform .08s ease, background .2s ease, border-color .2s ease;
-    }
-    .actionBtn:hover{ background: color-mix(in srgb, var(--card) 150%, transparent); }
-    .actionBtn:active{ transform: scale(.98); }
-    .actionIcon{font-size:18px; display:block; margin-bottom:6px;}
+    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;color:var(--text);
+      background:radial-gradient(900px 600px at 10% -5%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 60%),
+      radial-gradient(800px 500px at 110% 10%, color-mix(in srgb, var(--accent2) 22%, transparent), transparent 62%),
+      radial-gradient(900px 700px at 40% 120%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%),
+      linear-gradient(180deg, var(--bg), var(--bg2));min-height:100vh;}
+    .wrap{max-width:760px;margin:0 auto;padding:16px 14px calc(var(--tabH) + 18px);}
+    .header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px;}
+    .title{margin:0;font-size:22px;font-weight:900;letter-spacing:.2px;}
+    .sub{margin:6px 0 0 0;color:var(--muted);font-size:13px;line-height:1.35;}
+    .card{border:1px solid var(--stroke);border-radius:var(--radius);background:linear-gradient(180deg, var(--card), var(--card2));box-shadow:var(--shadow);padding:14px;}
+    .balanceBlock{padding:18px 16px;border-radius:22px;border:1px solid var(--stroke);background:linear-gradient(180deg, color-mix(in srgb, var(--card) 110%, transparent), var(--card2));box-shadow:0 18px 48px rgba(0,0,0,.25);margin-bottom:14px;}
+    .balanceK{font-size:12px;color:var(--muted);margin-bottom:8px;}
+    .balanceV{font-size:38px;font-weight:1000;letter-spacing:.6px;line-height:1;}
+    .balanceMeta{margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:12px;}
+    .pill{padding:6px 10px;border-radius:999px;border:1px solid var(--stroke);background:color-mix(in srgb, var(--card) 130%, transparent);display:inline-flex;align-items:center;gap:8px;}
+    .actionRow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px;}
+    .actionBtn{border:1px solid var(--stroke);background:color-mix(in srgb, var(--card) 120%, transparent);color:var(--text);border-radius:16px;padding:12px 10px;font-weight:800;text-align:center;cursor:pointer;user-select:none;transition:transform .08s ease, background .2s ease;}
+    .actionBtn:active{transform:scale(.98)}
+    .actionIcon{font-size:18px;display:block;margin-bottom:6px;}
     .actionSub{font-size:11px;color:var(--muted);font-weight:700;margin-top:2px}
-
-    .list{
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      margin-top:12px;
-    }
-    .item{
-      border:1px solid var(--stroke);
-      border-radius:18px;
-      background: color-mix(in srgb, var(--card) 115%, transparent);
-      padding:12px 12px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      cursor:pointer;
-      user-select:none;
-      transition: background .2s ease;
-    }
-    .item:hover{ background: color-mix(in srgb, var(--card) 155%, transparent); }
-    .itemL{display:flex; align-items:center; gap:10px; min-width:0;}
-    .badge{
-      width:36px;height:36px;border-radius:14px;
-      border:1px solid var(--stroke);
-      display:grid;place-items:center;
-      background: radial-gradient(18px 18px at 30% 30%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 65%),
-                  color-mix(in srgb, var(--card) 140%, transparent);
-      flex:0 0 auto;
-    }
-    .itemText{min-width:0;}
-    .itemTitle{font-weight:900; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-    .itemDesc{font-size:12px; color:var(--muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-    .chev{color:var(--muted); font-weight:900;}
-
-    .tab{display:none;}
-    .tab.active{display:block;}
-
-    .dish{
-      margin-top:12px;
-      border:1px solid var(--stroke);
-      border-radius:20px;
-      background: color-mix(in srgb, var(--card) 120%, transparent);
-      padding:14px;
-    }
-    .dishName{font-size:18px; font-weight:1000; margin:0 0 8px 0;}
-    .chips{display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 0 0;}
-    .chip{
-      font-size:12px;
-      padding:6px 10px;
-      border-radius:999px;
-      border:1px solid var(--stroke);
-      background: color-mix(in srgb, var(--card) 145%, transparent);
-      color:var(--muted);
-    }
-    .chip.accent{
-      color:var(--text);
-      border-color: color-mix(in srgb, var(--accent) 45%, var(--stroke));
-      background: color-mix(in srgb, var(--accent) 14%, transparent);
-    }
-    .dishWhy{margin:10px 0 0 0; color:var(--muted); font-size:13px; line-height:1.45}
-
-    .out{
-      margin-top:12px;
-      border:1px solid var(--stroke);
-      border-radius:20px;
-      background: color-mix(in srgb, var(--card) 115%, transparent);
-      padding:12px;
-    }
-    .outHead{display:flex; align-items:center; justify-content:space-between; gap:10px}
-    .outTitle{font-weight:950; font-size:13px}
-    pre{white-space:pre-wrap; margin:10px 0 0 0; font-size:13px; line-height:1.45}
-
-    .formGrid{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:10px;
-      margin-top:10px;
-    }
-    .field label{
-      display:block;
-      font-size:12px;
-      color:var(--muted);
-      margin:0 0 6px 2px;
-    }
-    select,input{
-      width:100%;
-      padding:12px 12px;
-      border-radius:16px;
-      border:1px solid var(--stroke);
-      background: color-mix(in srgb, var(--card) 130%, transparent);
-      color:var(--text);
-      outline:none;
-    }
+    .list{display:flex;flex-direction:column;gap:10px;margin-top:12px;}
+    .item{border:1px solid var(--stroke);border-radius:18px;background:color-mix(in srgb, var(--card) 115%, transparent);padding:12px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;user-select:none;}
+    .itemL{display:flex;align-items:center;gap:10px;min-width:0;}
+    .badge{width:36px;height:36px;border-radius:14px;border:1px solid var(--stroke);display:grid;place-items:center;background:radial-gradient(18px 18px at 30% 30%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 65%),color-mix(in srgb, var(--card) 140%, transparent);flex:0 0 auto;}
+    .itemTitle{font-weight:900;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .itemDesc{font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .chev{color:var(--muted);font-weight:900;}
+    .tab{display:none;} .tab.active{display:block;}
+    .dish{margin-top:12px;border:1px solid var(--stroke);border-radius:20px;background:color-mix(in srgb, var(--card) 120%, transparent);padding:14px;}
+    .dishName{font-size:18px;font-weight:1000;margin:0 0 8px 0;}
+    .chips{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 0 0;}
+    .chip{font-size:12px;padding:6px 10px;border-radius:999px;border:1px solid var(--stroke);background:color-mix(in srgb, var(--card) 145%, transparent);color:var(--muted);}
+    .chip.accent{color:var(--text);border-color:color-mix(in srgb, var(--accent) 45%, var(--stroke));background:color-mix(in srgb, var(--accent) 14%, transparent);}
+    .dishWhy{margin:10px 0 0 0;color:var(--muted);font-size:13px;line-height:1.45}
+    .out{margin-top:12px;border:1px solid var(--stroke);border-radius:20px;background:color-mix(in srgb, var(--card) 115%, transparent);padding:12px;}
+    .outHead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .outTitle{font-weight:950;font-size:13px}
+    pre{white-space:pre-wrap;margin:10px 0 0 0;font-size:13px;line-height:1.45}
+    .formGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}
+    .field label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px 2px;}
+    select,input{width:100%;padding:12px 12px;border-radius:16px;border:1px solid var(--stroke);background:color-mix(in srgb, var(--card) 130%, transparent);color:var(--text);outline:none;}
     option{color:#111}
-    .checks{
-      display:flex;
-      gap:14px;
-      flex-wrap:wrap;
-      margin-top:12px;
-    }
-    .chk{display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px}
+    .checks{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;}
+    .chk{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}
     .chk input{width:18px;height:18px}
-
-    .btnRow{
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      margin-top:12px;
-    }
-    .btn{
-      border:1px solid var(--stroke);
-      background: color-mix(in srgb, var(--card) 135%, transparent);
-      color:var(--text);
-      border-radius:16px;
-      padding:12px 12px;
-      font-weight:900;
-      cursor:pointer;
-      user-select:none;
-      transition: transform .08s ease, background .2s ease;
-    }
-    .btn.primary{
-      border-color: color-mix(in srgb, var(--accent) 45%, var(--stroke));
-      background: linear-gradient(135deg,
-        color-mix(in srgb, var(--accent) 18%, transparent),
-        color-mix(in srgb, var(--accent2) 14%, transparent)
-      );
-    }
-    .btn:active{ transform: scale(.98); }
-
-    .tabbar{
-      position:fixed;
-      left:0; right:0; bottom:0;
-      height:var(--tabH);
-      padding:10px 12px 14px;
-      background: color-mix(in srgb, var(--bg) 85%, transparent);
-      backdrop-filter: blur(14px);
-      border-top:1px solid var(--stroke);
-      display:flex;
-      justify-content:center;
-      z-index:50;
-    }
-    .tabbarInner{
-      width:min(760px, 100%);
-      display:grid;
-      grid-template-columns: repeat(4, minmax(0,1fr));
-      gap:8px;
-    }
-    .tabbtn{
-      border:1px solid transparent;
-      border-radius:18px;
-      background: transparent;
-      color:var(--muted);
-      padding:10px 8px;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      justify-content:center;
-      gap:4px;
-      cursor:pointer;
-      user-select:none;
-      transition: background .2s ease, color .2s ease, border-color .2s ease;
-    }
-    .tabbtn .ic{font-size:18px}
-    .tabbtn .lb{font-size:11px;font-weight:900}
-    .tabbtn.active{
-      background: color-mix(in srgb, var(--card) 150%, transparent);
-      border-color: var(--stroke);
-      color:var(--text);
-    }
-
-    @media (max-width:520px){
-      .formGrid{grid-template-columns:1fr;}
-      .actionRow{grid-template-columns: repeat(3, minmax(0,1fr));}
-      .balanceV{font-size:34px}
-    }
-
-    .fade{animation:fade .16s ease-out}
-    @keyframes fade{from{opacity:.4;transform:translateY(2px)}to{opacity:1;transform:translateY(0)}}
+    .btnRow{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;}
+    .btn{border:1px solid var(--stroke);background:color-mix(in srgb, var(--card) 135%, transparent);color:var(--text);border-radius:16px;padding:12px 12px;font-weight:900;cursor:pointer;user-select:none;}
+    .btn.primary{border-color:color-mix(in srgb, var(--accent) 45%, var(--stroke));background:linear-gradient(135deg,color-mix(in srgb, var(--accent) 18%, transparent),color-mix(in srgb, var(--accent2) 14%, transparent));}
+    .tabbar{position:fixed;left:0;right:0;bottom:0;height:var(--tabH);padding:10px 12px 14px;background:color-mix(in srgb, var(--bg) 85%, transparent);backdrop-filter:blur(14px);border-top:1px solid var(--stroke);display:flex;justify-content:center;z-index:50;}
+    .tabbarInner{width:min(760px,100%);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;}
+    .tabbtn{border:1px solid transparent;border-radius:18px;background:transparent;color:var(--muted);padding:10px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;user-select:none;}
+    .tabbtn .ic{font-size:18px} .tabbtn .lb{font-size:11px;font-weight:900}
+    .tabbtn.active{background:color-mix(in srgb, var(--card) 150%, transparent);border-color:var(--stroke);color:var(--text);}
+    @media (max-width:520px){.formGrid{grid-template-columns:1fr;}.balanceV{font-size:34px}}
+    .debug{margin-top:10px;font-size:12px;color:var(--muted)}
   </style>
 </head>
 
@@ -321,13 +75,11 @@
         <h1 class="title" id="uiTitle">Najjednostavniji recepti</h1>
         <p class="sub" id="uiSub">Cook Today • daily dish • ingredients • steps • filters</p>
       </div>
-      <div class="pill" id="statusPill">
-        <span>🔍</span><span id="statusText">Loading…</span>
-      </div>
+      <div class="pill"><span>🔍</span><span id="statusText">Loading…</span></div>
     </div>
 
     <div class="tab active" id="tab_home">
-      <div class="balanceBlock fade">
+      <div class="balanceBlock">
         <div class="balanceK" id="balK">Balance</div>
         <div class="balanceV" id="balV">—</div>
         <div class="balanceMeta">
@@ -336,84 +88,41 @@
         </div>
 
         <div class="actionRow">
-          <div class="actionBtn" id="btnDaily">
-            <span class="actionIcon">⬇️</span>
-            <span id="tDaily">Daily dish</span>
-            <div class="actionSub" id="tDailySub">Updates daily</div>
-          </div>
-          <div class="actionBtn" id="btnRecipe">
-            <span class="actionIcon">⬆️</span>
-            <span id="tRecipe">Recipe</span>
-            <div class="actionSub" id="tRecipeSub">Steps</div>
-          </div>
-          <div class="actionBtn" id="btnWallet">
-            <span class="actionIcon">↕️</span>
-            <span id="tWallet">Tokens</span>
-            <div class="actionSub" id="tWalletSub">Balance</div>
-          </div>
+          <div class="actionBtn" id="btnDaily"><span class="actionIcon">⬇️</span><span id="tDaily">Daily dish</span><div class="actionSub" id="tDailySub">Updates</div></div>
+          <div class="actionBtn" id="btnRecipe"><span class="actionIcon">⬆️</span><span id="tRecipe">Recipe</span><div class="actionSub" id="tRecipeSub">Steps</div></div>
+          <div class="actionBtn" id="btnWallet"><span class="actionIcon">↕️</span><span id="tWallet">Tokens</span><div class="actionSub" id="tWalletSub">Balance</div></div>
         </div>
+
+        <div class="debug" id="dbg"></div>
       </div>
 
-      <div class="card fade">
+      <div class="card">
         <div style="font-weight:950; font-size:14px" id="homeH">Today's dish</div>
         <div id="dishBox" class="dish" style="display:none"></div>
         <div id="outBox" class="out" style="display:none"></div>
 
         <div class="list">
-          <div class="item" id="goFilters">
-            <div class="itemL">
-              <div class="badge">⚙️</div>
-              <div class="itemText">
-                <div class="itemTitle" id="homeFiltersT">Settings / Filters</div>
-                <div class="itemDesc" id="homeFiltersD">Diet, time, exclusions</div>
-              </div>
-            </div>
-            <div class="chev">›</div>
-          </div>
-
-          <div class="item" id="goHow">
-            <div class="itemL">
-              <div class="badge">📌</div>
-              <div class="itemText">
-                <div class="itemTitle" id="homeHowT">How it works</div>
-                <div class="itemDesc" id="homeHowD">Trial → tokens + bonus</div>
-              </div>
-            </div>
-            <div class="chev">›</div>
-          </div>
+          <div class="item" id="goFilters"><div class="itemL"><div class="badge">⚙️</div><div><div class="itemTitle" id="homeFiltersT">Settings / Filters</div><div class="itemDesc" id="homeFiltersD">Diet, time</div></div></div><div class="chev">›</div></div>
+          <div class="item" id="goHow"><div class="itemL"><div class="badge">📌</div><div><div class="itemTitle" id="homeHowT">How it works</div><div class="itemDesc" id="homeHowD">Trial → tokens</div></div></div><div class="chev">›</div></div>
         </div>
       </div>
     </div>
 
     <div class="tab" id="tab_recipe">
-      <div class="card fade">
+      <div class="card">
         <div style="font-weight:950; font-size:14px" id="recH">Recipe</div>
-
         <div class="actionRow" style="margin-top:12px">
-          <div class="actionBtn" id="btnIng">
-            <span class="actionIcon">🧾</span>
-            <span id="tIng">Ingredients</span>
-            <div class="actionSub" id="tIngSub">List</div>
-          </div>
-          <div class="actionBtn" id="btnSteps">
-            <span class="actionIcon">👨‍🍳</span>
-            <span id="tSteps">Steps</span>
-            <div class="actionSub" id="tStepsSub">How to</div>
-          </div>
-          <div class="actionBtn" id="btnTime">
-            <span class="actionIcon">⏱</span>
-            <span id="tTime">Time</span>
-            <div class="actionSub" id="tTimeSub">Approx</div>
-          </div>
+          <div class="actionBtn" id="btnIng"><span class="actionIcon">🧾</span><span id="tIng">Ingredients</span><div class="actionSub" id="tIngSub">List</div></div>
+          <div class="actionBtn" id="btnSteps"><span class="actionIcon">👨‍🍳</span><span id="tSteps">Steps</span><div class="actionSub" id="tStepsSub">How</div></div>
+          <div class="actionBtn" id="btnTime"><span class="actionIcon">⏱</span><span id="tTime">Time</span><div class="actionSub" id="tTimeSub">Approx</div></div>
         </div>
-
         <div id="dishBox2" class="dish" style="display:none;margin-top:12px"></div>
         <div id="outBox2" class="out" style="display:none;margin-top:12px"></div>
       </div>
     </div>
 
     <div class="tab" id="tab_filters">
-      <div class="card fade">
+      <div class="card">
         <div style="font-weight:950; font-size:14px" id="filH">Settings</div>
 
         <div class="formGrid">
@@ -468,59 +177,9 @@
     </div>
 
     <div class="tab" id="tab_wallet">
-      <div class="balanceBlock fade">
-        <div class="balanceK" id="wK">Balance</div>
-        <div class="balanceV" id="wV">—</div>
-        <div class="balanceMeta">
-          <span class="pill" id="wMeta1">🎁 Trial: —</span>
-          <span class="pill" id="wMeta2">🪙 Tokens: —</span>
-        </div>
-
-        <div class="actionRow">
-          <div class="actionBtn" id="btnBuy">
-            <span class="actionIcon">⬇️</span>
-            <span id="tBuy">Buy</span>
-            <div class="actionSub" id="tBuySub">Tokens / Stars</div>
-          </div>
-          <div class="actionBtn" id="btnBonus">
-            <span class="actionIcon">🎁</span>
-            <span id="tBonus">Bonus</span>
-            <div class="actionSub" id="tBonusSub">Daily limited</div>
-          </div>
-          <div class="actionBtn" id="btnSupport">
-            <span class="actionIcon">💬</span>
-            <span id="tSupport">Support</span>
-            <div class="actionSub" id="tSupportSub">Help</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card fade">
-        <div style="font-weight:950; font-size:14px" id="wH">Wallet</div>
-
-        <div class="list">
-          <div class="item" id="wRules">
-            <div class="itemL">
-              <div class="badge">📜</div>
-              <div class="itemText">
-                <div class="itemTitle" id="wRulesT">Rules</div>
-                <div class="itemDesc" id="wRulesD">Trial → tokens + bonus</div>
-              </div>
-            </div>
-            <div class="chev">›</div>
-          </div>
-
-          <div class="item" id="wPrices">
-            <div class="itemL">
-              <div class="badge">💳</div>
-              <div class="itemText">
-                <div class="itemTitle" id="wPricesT">Pricing</div>
-                <div class="itemDesc" id="wPricesD">Feature costs</div>
-              </div>
-            </div>
-            <div class="chev">›</div>
-          </div>
-        </div>
+      <div class="card">
+        <div style="font-weight:950; font-size:14px">Wallet</div>
+        <div style="color:var(--muted);font-size:13px;margin-top:6px">Stars payment next step.</div>
       </div>
     </div>
   </div>
@@ -535,294 +194,200 @@
   </div>
 
 <script>
+  // ✅ IMPORTANT: set your Render backend URL here
+  const API_BASE = "https://food-miniapppp.onrender.com";
+
   const tg = window.Telegram?.WebApp;
   try { tg?.ready?.(); tg?.expand?.(); } catch(e){}
 
-  // THEME
-  function isDarkByScheme(){
-    return (tg?.colorScheme === "dark") || (window.matchMedia("(prefers-color-scheme: dark)").matches);
-  }
-  function applyTheme(){
-    const p = tg?.themeParams || {};
-    const dark = isDarkByScheme();
-    const bg = p.bg_color || (dark ? "#0b0f14" : "#f7f8fc");
-    const text = p.text_color || (dark ? "#e9eef5" : "#0f172a");
-    const muted = p.hint_color || (dark ? "rgba(233,238,245,.70)" : "rgba(15,23,42,.62)");
-    const accent = p.button_color || (dark ? "#4da3ff" : "#2b7cff");
-    const stroke = dark ? "rgba(255,255,255,.10)" : "rgba(15,23,42,.10)";
-    const card = dark ? "rgba(255,255,255,.06)" : "rgba(15,23,42,.04)";
-    const card2 = dark ? "rgba(255,255,255,.04)" : "rgba(15,23,42,.03)";
-    const bg2 = dark ? "#070a0f" : "#eef1f8";
-    document.documentElement.style.setProperty("--bg", bg);
-    document.documentElement.style.setProperty("--bg2", bg2);
-    document.documentElement.style.setProperty("--text", text);
-    document.documentElement.style.setProperty("--muted", muted);
-    document.documentElement.style.setProperty("--stroke", stroke);
-    document.documentElement.style.setProperty("--card", card);
-    document.documentElement.style.setProperty("--card2", card2);
-    document.documentElement.style.setProperty("--accent", accent);
-    document.documentElement.style.setProperty("--accent2", dark ? "#7c5cff" : "#6a5cff");
-  }
-  applyTheme();
-  try { tg?.onEvent?.("themeChanged", applyTheme); } catch(e){}
-
-  // i18n
   const I18N = {
-    uk: {
-      uiTitle:"Najjednostavniji recepti",
-      uiSub:"Cook Today • страва дня • інгредієнти • рецепт • фільтри",
-      balanceK:"Загальний баланс",
-      homeH:"Сьогоднішня страва",
-      daily:"Страва дня",
-      dailySub:"Оновлюється щодня",
-      recipe:"Рецепт",
-      recipeSub:"Кроки приготування",
-      wallet:"Токени",
-      walletSub:"Баланс і бонуси",
-      ing:"Інгредієнти",
-      steps:"Кроки",
-      time:"Час",
-      ingSub:"Список продуктів",
-      stepsSub:"Покроково",
-      timeSub:"Приблизно",
-      filtersT:"Налаштування / Фільтри",
-      filtersD:"Дієта, час, виключення інгредієнтів",
-      howT:"Як це працює",
-      howD:"Trial 7 днів, потім токени + бонуси",
-      tbHome:"Головна",
-      tbRecipe:"Рецепт",
-      tbFilters:"Фільтри",
-      tbWallet:"Гаманець",
-      filH:"Налаштування",
-      lLang:"🌏 Мова",
-      lDiet:"Дієта",
-      lMax:"Макс час",
-      lExcl:"Виключити (через кому)",
-      save:"Зберегти",
-      refresh:"Оновити",
-      wK:"Баланс",
-      wH:"Гаманець",
-      buy:"Купити",
-      buySub:"Токени / Stars",
-      bonus:"Бонус",
-      bonusSub:"Щодня обмежено",
-      support:"Підтримка",
-      supportSub:"Питання / баги",
-      rulesT:"Правила токенів",
-      rulesD:"Trial 7 днів → потім токени + бонуси",
-      pricesT:"Прайс",
-      pricesD:"Скільки коштує дія після trial",
-      outIng:"🧾 Інгредієнти",
-      outSteps:"👨‍🍳 Кроки",
-      outTime:"⏱ Час",
-      noDish:"Немає страви під ці фільтри",
-      noTokens:"Немає токенів 😕",
-      howTitle:"Як працює",
-      howMsg:"🎁 Trial 7 днів: все безкоштовно.\nПісля trial: дії списують токени.\nRefresh: дає іншу страву під фільтри."
-    },
-    hr: {
-      uiTitle:"Najjednostavniji recepti",
-      uiSub:"Cook Today • jelo dana • sastojci • recept • filteri",
-      balanceK:"Ukupni balans",
-      homeH:"Današnje jelo",
-      daily:"Jelo dana",
-      dailySub:"Mijenja se svaki dan",
-      recipe:"Recept",
-      recipeSub:"Koraci pripreme",
-      wallet:"Tokeni",
-      walletSub:"Stanje i bonusi",
-      ing:"Sastojci",
-      steps:"Koraci",
-      time:"Vrijeme",
-      ingSub:"Popis namirnica",
-      stepsSub:"Korak po korak",
-      timeSub:"Otprilike",
-      filtersT:"Postavke / Filteri",
-      filtersD:"Dijeta, vrijeme, izbacivanje sastojaka",
-      howT:"Kako radi",
-      howD:"Trial 7 dana, zatim tokeni + bonusi",
-      tbHome:"Početna",
-      tbRecipe:"Recept",
-      tbFilters:"Filteri",
-      tbWallet:"Novčanik",
-      filH:"Postavke",
-      lLang:"🌏 Jezik",
-      lDiet:"Dijeta",
-      lMax:"Max vrijeme",
-      lExcl:"Izbaci (zarez)",
-      save:"Spremi",
-      refresh:"Osvježi",
-      wK:"Stanje",
-      wH:"Novčanik",
-      buy:"Kupi",
-      buySub:"Tokeni / Stars",
-      bonus:"Bonus",
-      bonusSub:"Dnevno ograničeno",
-      support:"Podrška",
-      supportSub:"Pitanja / bugovi",
-      rulesT:"Pravila tokena",
-      rulesD:"Trial 7 dana → zatim tokeni + bonusi",
-      pricesT:"Cijene",
-      pricesD:"Koliko košta radnja nakon trial",
-      outIng:"🧾 Sastojci",
-      outSteps:"👨‍🍳 Koraci",
-      outTime:"⏱ Vrijeme",
-      noDish:"Nema jela za ove filtre",
-      noTokens:"Nema tokena 😕",
-      howTitle:"Kako radi",
-      howMsg:"🎁 Trial 7 dana: sve je besplatno.\nNakon trial: radnje troše tokene.\nRefresh: daje drugo jelo po filterima."
-    },
-    en: {
-      uiTitle:"Najjednostavniji recepti",
-      uiSub:"Cook Today • daily dish • ingredients • steps • filters",
-      balanceK:"Total balance",
-      homeH:"Today's dish",
-      daily:"Dish of the day",
-      dailySub:"Updates daily",
-      recipe:"Recipe",
-      recipeSub:"Cooking steps",
-      wallet:"Tokens",
-      walletSub:"Balance & bonuses",
-      ing:"Ingredients",
-      steps:"Steps",
-      time:"Time",
-      ingSub:"Grocery list",
-      stepsSub:"Step by step",
-      timeSub:"Approximate",
-      filtersT:"Settings / Filters",
-      filtersD:"Diet, time, ingredient exclusions",
-      howT:"How it works",
-      howD:"7-day trial, then tokens + bonuses",
-      tbHome:"Home",
-      tbRecipe:"Recipe",
-      tbFilters:"Filters",
-      tbWallet:"Wallet",
-      filH:"Settings",
-      lLang:"🌏 Language",
-      lDiet:"Diet",
-      lMax:"Max time",
-      lExcl:"Exclude (comma)",
-      save:"Save",
-      refresh:"Refresh",
-      wK:"Balance",
-      wH:"Wallet",
-      buy:"Buy",
-      buySub:"Tokens / Stars",
-      bonus:"Bonus",
-      bonusSub:"Daily limited",
-      support:"Support",
-      supportSub:"Questions / bugs",
-      rulesT:"Token rules",
-      rulesD:"7-day trial → tokens + bonuses",
-      pricesT:"Pricing",
-      pricesD:"Feature costs after trial",
-      outIng:"🧾 Ingredients",
-      outSteps:"👨‍🍳 Steps",
-      outTime:"⏱ Time",
-      noDish:"No dish matches these filters",
-      noTokens:"No tokens 😕",
-      howTitle:"How it works",
-      howMsg:"🎁 7-day trial: everything is free.\nAfter trial: actions cost tokens.\nRefresh: gets a different dish matching filters."
-    }
+    uk:{uiTitle:"Najjednostavniji recepti",uiSub:"Cook Today • страва дня • інгредієнти • рецепт • фільтри",
+      balK:"Загальний баланс",homeH:"Сьогоднішня страва",daily:"Страва дня",dailySub:"Оновлюється щодня",
+      recipe:"Рецепт",recipeSub:"Кроки приготування",wallet:"Токени",walletSub:"Баланс і бонуси",
+      ing:"Інгредієнти",steps:"Кроки",time:"Час",ingSub:"Список продуктів",stepsSub:"Покроково",timeSub:"Приблизно",
+      filtersT:"Налаштування / Фільтри",filtersD:"Дієта, час, виключення інгредієнтів",howT:"Як це працює",
+      howD:"Trial 7 днів, потім токени + бонуси",tbHome:"Головна",tbRecipe:"Рецепт",tbFilters:"Фільтри",tbWallet:"Гаманець",
+      filH:"Налаштування",lLang:"🌏 Мова",lDiet:"Дієта",lMax:"Макс час",lExcl:"Виключити (через кому)",save:"Зберегти",refresh:"Оновити",
+      outIng:"🧾 Інгредієнти",outSteps:"👨‍🍳 Кроки",outTime:"⏱ Час",noDish:"Немає страви під ці фільтри",noTokens:"Немає токенів 😕",
+      howTitle:"Як працює",howMsg:"Refresh дає іншу страву під фільтри."},
+    hr:{uiTitle:"Najjednostavniji recepti",uiSub:"Cook Today • jelo dana • sastojci • recept • filteri",
+      balK:"Ukupni balans",homeH:"Današnje jelo",daily:"Jelo dana",dailySub:"Mijenja se svaki dan",
+      recipe:"Recept",recipeSub:"Koraci pripreme",wallet:"Tokeni",walletSub:"Stanje i bonusi",
+      ing:"Sastojci",steps:"Koraci",time:"Vrijeme",ingSub:"Popis namirnica",stepsSub:"Korak po korak",timeSub:"Otprilike",
+      filtersT:"Postavke / Filteri",filtersD:"Dijeta, vrijeme, izbacivanje sastojaka",howT:"Kako radi",
+      howD:"Trial 7 dana, zatim tokeni + bonusi",tbHome:"Početna",tbRecipe:"Recept",tbFilters:"Filteri",tbWallet:"Novčanik",
+      filH:"Postavke",lLang:"🌏 Jezik",lDiet:"Dijeta",lMax:"Max vrijeme",lExcl:"Izbaci (zarez)",save:"Spremi",refresh:"Osvježi",
+      outIng:"🧾 Sastojci",outSteps:"👨‍🍳 Koraci",outTime:"⏱ Vrijeme",noDish:"Nema jela za ove filtre",noTokens:"Nema tokena 😕",
+      howTitle:"Kako radi",howMsg:"Refresh daje drugo jelo po filterima."},
+    en:{uiTitle:"Najjednostavniji recepti",uiSub:"Cook Today • daily dish • ingredients • steps • filters",
+      balK:"Total balance",homeH:"Today's dish",daily:"Dish of the day",dailySub:"Updates daily",
+      recipe:"Recipe",recipeSub:"Cooking steps",wallet:"Tokens",walletSub:"Balance & bonuses",
+      ing:"Ingredients",steps:"Steps",time:"Time",ingSub:"Grocery list",stepsSub:"Step by step",timeSub:"Approximate",
+      filtersT:"Settings / Filters",filtersD:"Diet, time, exclusions",howT:"How it works",
+      howD:"7-day trial, then tokens + bonuses",tbHome:"Home",tbRecipe:"Recipe",tbFilters:"Filters",tbWallet:"Wallet",
+      filH:"Settings",lLang:"🌏 Language",lDiet:"Diet",lMax:"Max time",lExcl:"Exclude (comma)",save:"Save",refresh:"Refresh",
+      outIng:"🧾 Ingredients",outSteps:"👨‍🍳 Steps",outTime:"⏱ Time",noDish:"No dish matches these filters",noTokens:"No tokens 😕",
+      howTitle:"How it works",howMsg:"Refresh gets a different dish matching filters."}
   };
 
   let LANG = "uk";
   let STATUS = null;
   let DISH = null;
 
+  function dbg(msg){ document.getElementById("dbg").textContent = msg; }
+
   function T(){ return I18N[LANG] || I18N.uk; }
   function setText(id, val){ const el=document.getElementById(id); if(el) el.textContent = val; }
 
   function setUi(){
-    const t = T();
-    document.documentElement.lang = LANG;
-
-    setText("uiTitle", t.uiTitle);
-    setText("uiSub", t.uiSub);
-    setText("balK", t.balanceK);
-    setText("homeH", t.homeH);
-
-    setText("tDaily", t.daily);
-    setText("tDailySub", t.dailySub);
-    setText("tRecipe", t.recipe);
-    setText("tRecipeSub", t.recipeSub);
-    setText("tWallet", t.wallet);
-    setText("tWalletSub", t.walletSub);
-
-    setText("tIng", t.ing);
-    setText("tSteps", t.steps);
-    setText("tTime", t.time);
-    setText("tIngSub", t.ingSub);
-    setText("tStepsSub", t.stepsSub);
-    setText("tTimeSub", t.timeSub);
-
-    setText("homeFiltersT", t.filtersT);
-    setText("homeFiltersD", t.filtersD);
-    setText("homeHowT", t.howT);
-    setText("homeHowD", t.howD);
-
-    setText("tbHome", t.tbHome);
-    setText("tbRecipe", t.tbRecipe);
-    setText("tbFilters", t.tbFilters);
-    setText("tbWallet", t.tbWallet);
-
-    setText("filH", t.filH);
-    setText("lLang", t.lLang);
-    setText("lDiet", t.lDiet);
-    setText("lMax", t.lMax);
-    setText("lExcl", t.lExcl);
-    setText("tSave", t.save);
-    setText("tRefresh", t.refresh);
-
-    setText("wK", t.wK);
-    setText("wH", t.wH);
-    setText("tBuy", t.buy);
-    setText("tBuySub", t.buySub);
-    setText("tBonus", t.bonus);
-    setText("tBonusSub", t.bonusSub);
-    setText("tSupport", t.support);
-    setText("tSupportSub", t.supportSub);
-    setText("wRulesT", t.rulesT);
-    setText("wRulesD", t.rulesD);
-    setText("wPricesT", t.pricesT);
-    setText("wPricesD", t.pricesD);
+    const t=T();
+    setText("uiTitle",t.uiTitle); setText("uiSub",t.uiSub);
+    setText("balK",t.balK); setText("homeH",t.homeH);
+    setText("tDaily",t.daily); setText("tDailySub",t.dailySub);
+    setText("tRecipe",t.recipe); setText("tRecipeSub",t.recipeSub);
+    setText("tWallet",t.wallet); setText("tWalletSub",t.walletSub);
+    setText("tIng",t.ing); setText("tIngSub",t.ingSub);
+    setText("tSteps",t.steps); setText("tStepsSub",t.stepsSub);
+    setText("tTime",t.time); setText("tTimeSub",t.timeSub);
+    setText("homeFiltersT",t.filtersT); setText("homeFiltersD",t.filtersD);
+    setText("homeHowT",t.howT); setText("homeHowD",t.howD);
+    setText("tbHome",t.tbHome); setText("tbRecipe",t.tbRecipe); setText("tbFilters",t.tbFilters); setText("tbWallet",t.tbWallet);
+    setText("filH",t.filH); setText("lLang",t.lLang); setText("lDiet",t.lDiet); setText("lMax",t.lMax); setText("lExcl",t.lExcl);
+    setText("tSave",t.save); setText("tRefresh",t.refresh);
   }
 
   async function api(path, method="GET", body=null){
     const initData = tg?.initData || "";
     const headers = {"Content-Type":"application/json"};
     if(initData) headers["X-Telegram-Init-Data"] = initData;
-    const res = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : null });
-    if(!res.ok) throw new Error(await res.text());
+
+    const url = API_BASE + path;
+    const res = await fetch(url, {method, headers, body: body ? JSON.stringify(body) : null});
+    if(!res.ok) throw new Error((await res.text()) || ("HTTP "+res.status));
     return res.json();
   }
 
-  function haptic(type="impact", style="light"){
-    try{
-      const h = tg?.HapticFeedback;
-      if(!h) return;
-      if(type==="impact") h.impactOccurred(style);
-      if(type==="success") h.notificationOccurred("success");
-      if(type==="error") h.notificationOccurred("error");
-    }catch(e){}
-  }
-
   function showPopup(title, message){
-    try{
-      tg?.showPopup?.({title, message, buttons:[{type:"ok"}]});
-    }catch(e){
-      alert(title + "\n" + message);
-    }
+    try{ tg?.showPopup?.({title, message, buttons:[{type:"ok"}]}); }
+    catch(e){ alert(title + "\n" + message); }
   }
 
-  function renderDish(dish){
-    DISH = dish;
-    const b1 = document.getElementById("dishBox");
-    const b2 = document.getElementById("dishBox2");
-    if(!dish){
-      b1.style.display="none";
-      b2.style.display="none";
-      return;
-    }
+  function renderDish(d){
+    DISH=d;
+    const b1=document.getElementById("dishBox");
+    const b2=document.getElementById("dishBox2");
+    if(!d){ b1.style.display="none"; b2.style.display="none"; return; }
+    const tags=(d.tags||[]).slice(0,6);
+    const chips=[`<span class="chip accent">⏱ ~${d.time_total_min} min</span>`, ...tags.map(x=>`<span class="chip">${x}</span>`)].join("");
+    const html=`<div class="dishName">${d.title}</div><div class="chips">${chips}</div><div class="dishWhy">${d.why||""}</div>`;
+    b1.innerHTML=html; b2.innerHTML=html; b1.style.display="block"; b2.style.display="block";
+  }
 
-   
+  function renderOut(title,data,target=1){
+    const box = (target===1)?document.getElementById("outBox"):document.getElementById("outBox2");
+    if(!data){ box.style.display="none"; return; }
+    const body = Array.isArray(data)? data.map((x,i)=>`${i+1}. ${x}`).join("\n") : String(data);
+    box.innerHTML=`<div class="outHead"><div class="outTitle">${title}</div><div class="chip">${DISH?DISH.title:"—"}</div></div><pre>${body}</pre>`;
+    box.style.display="block";
+  }
+
+  function setStatusText(){
+    if(!STATUS) return;
+    const el=document.getElementById("statusText");
+    el.textContent = STATUS.trial ? `Trial: ${STATUS.trial_days_left} days` : `Tokens: ${STATUS.tokens}`;
+    document.getElementById("balV").textContent = STATUS.trial ? "TRIAL" : String(STATUS.tokens);
+    document.getElementById("meta1").textContent = STATUS.trial ? `🎁 Trial: ${STATUS.trial_days_left} days` : `🎁 Trial: 0 days`;
+    document.getElementById("meta2").textContent = `🪙 Tokens: ${STATUS.tokens}`;
+  }
+
+  async function refreshStatus(){
+    STATUS = await api("/api/status");
+    LANG = STATUS.lang || LANG || "uk";
+    document.getElementById("lang").value = LANG;
+    setUi();
+    setStatusText();
+
+    const f=STATUS.filters||{};
+    document.getElementById("diet").value = f.diet ?? "any";
+    document.getElementById("max_time").value = String(f.max_time ?? 0);
+    document.getElementById("exclude").value = (f.exclude||[]).join(", ");
+    ["gluten_free","lactose_free","high_protein","low_calorie"].forEach(k=>document.getElementById(k).checked=!!f[k]);
+
+    dbg(`API=${API_BASE} • demo=${STATUS.demo} • lang=${LANG}`);
+  }
+
+  async function loadDaily(reset=false){
+    const t=T();
+    const r = await api("/api/daily","POST",{reset, lang: LANG});
+    renderDish(r.dish);
+    renderOut("",null,1); renderOut("",null,2);
+    if(!r.dish) showPopup("Info", t.noDish);
+  }
+
+  async function loadAction(action){
+    const t=T();
+    const r = await api("/api/action","POST",{action, lang: LANG});
+    if(action==="ingredients") renderOut(t.outIng,r.data,2);
+    if(action==="steps") renderOut(t.outSteps,r.data,2);
+    if(action==="time") renderOut(t.outTime,(r.data??0)+" min",2);
+  }
+
+  function setTab(name){
+    ["home","recipe","filters","wallet"].forEach(x=>{
+      document.getElementById("tab_"+x).classList.toggle("active", x===name);
+      document.querySelector(`.tabbtn[data-tab="${x}"]`).classList.toggle("active", x===name);
+    });
+  }
+
+  // wiring
+  document.querySelectorAll(".tabbtn").forEach(b=>b.addEventListener("click",()=>setTab(b.dataset.tab)));
+  document.getElementById("btnDaily").onclick=()=>loadDaily(true); // ✅ always reset when tap
+  document.getElementById("btnRecipe").onclick=()=>setTab("recipe");
+  document.getElementById("btnWallet").onclick=()=>setTab("wallet");
+  document.getElementById("btnIng").onclick=()=>loadAction("ingredients");
+  document.getElementById("btnSteps").onclick=()=>loadAction("steps");
+  document.getElementById("btnTime").onclick=()=>loadAction("time");
+  document.getElementById("goFilters").onclick=()=>setTab("filters");
+  document.getElementById("goHow").onclick=()=>showPopup(T().howTitle,T().howMsg);
+
+  document.getElementById("btnSave").onclick=async ()=>{
+    const payload={
+      diet:document.getElementById("diet").value,
+      max_time:parseInt(document.getElementById("max_time").value,10),
+      gluten_free:document.getElementById("gluten_free").checked,
+      lactose_free:document.getElementById("lactose_free").checked,
+      high_protein:document.getElementById("high_protein").checked,
+      low_calorie:document.getElementById("low_calorie").checked,
+      exclude:document.getElementById("exclude").value.split(",").map(s=>s.trim()).filter(Boolean)
+    };
+    await api("/api/filters","POST",payload);
+    await refreshStatus();
+    await loadDaily(true);
+  };
+
+  document.getElementById("btnRefresh").onclick=async ()=>{
+    await refreshStatus();
+    await loadDaily(true);
+  };
+
+  document.getElementById("lang").onchange=async ()=>{
+    const newLang=document.getElementById("lang").value;
+    try{ await api("/api/lang","POST",{lang:newLang}); } catch(e){}
+    LANG=newLang;
+    setUi();
+    await refreshStatus().catch(()=>{});
+    await loadDaily(true);
+  };
+
+  (async ()=>{
+    try{
+      await refreshStatus();
+      await loadDaily(true);
+    }catch(e){
+      dbg("ERROR: " + e.message);
+      showPopup("Error", e.message);
+    }
+  })();
+</script>
+</body>
+</html>
