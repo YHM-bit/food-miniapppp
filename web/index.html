@@ -9,6 +9,7 @@
 
   <style>
     :root{
+
       --bg: #0b0f14;
       --bg2:#070a0f;
       --text:#e9eef5;
@@ -72,6 +73,7 @@
       padding:14px;
     }
 
+    /* Wallet-like big balance */
     .balanceBlock{
       padding:18px 16px;
       border-radius: 22px;
@@ -110,6 +112,7 @@
       gap:8px;
     }
 
+    /* Action buttons like wallet */
     .actionRow{
       display:grid;
       grid-template-columns: repeat(3, minmax(0,1fr));
@@ -133,6 +136,7 @@
     .actionIcon{font-size:18px; display:block; margin-bottom:6px;}
     .actionSub{font-size:11px;color:var(--muted);font-weight:700;margin-top:2px}
 
+    /* List items (wallet style) */
     .list{
       display:flex;
       flex-direction:column;
@@ -167,9 +171,11 @@
     .itemDesc{font-size:12px; color:var(--muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
     .chev{color:var(--muted); font-weight:900;}
 
+    /* Tabs content */
     .tab{display:none;}
     .tab.active{display:block;}
 
+    /* Dish card */
     .dish{
       margin-top:12px;
       border:1px solid var(--stroke);
@@ -194,6 +200,7 @@
     }
     .dishWhy{margin:10px 0 0 0; color:var(--muted); font-size:13px; line-height:1.45}
 
+    /* Content output */
     .out{
       margin-top:12px;
       border:1px solid var(--stroke);
@@ -205,6 +212,7 @@
     .outTitle{font-weight:950; font-size:13px}
     pre{white-space:pre-wrap; margin:10px 0 0 0; font-size:13px; line-height:1.45}
 
+    /* Filters (as separate tab like wallet) */
     .formGrid{
       display:grid;
       grid-template-columns: 1fr 1fr;
@@ -226,7 +234,10 @@
       color:var(--text);
       outline:none;
     }
-    option{color:#111}
+
+    /* ✅ PATCH #1: was option{color:#111} */
+    option{color:inherit}
+
     .checks{
       display:flex;
       gap:14px;
@@ -262,6 +273,7 @@
     }
     .btn:active{ transform: scale(.98); }
 
+    /* Bottom tab bar */
     .tabbar{
       position:fixed;
       left:0; right:0; bottom:0;
@@ -326,7 +338,7 @@
       </div>
     </div>
 
-    <!-- TAB: HOME -->
+    <!-- TAB: HOME / WALLET-LIKE OVERVIEW -->
     <div class="tab active" id="tab_home">
       <div class="balanceBlock fade">
         <div class="balanceK" id="balK">Общий баланс</div>
@@ -414,7 +426,7 @@
       </div>
     </div>
 
-    <!-- TAB: FILTERS -->
+    <!-- TAB: FILTERS (like separate wallet tab) -->
     <div class="tab" id="tab_filters">
       <div class="card fade">
         <div style="font-weight:950; font-size:14px" id="filH">Налаштування</div>
@@ -470,7 +482,7 @@
       </div>
     </div>
 
-    <!-- TAB: WALLET -->
+    <!-- TAB: WALLET / TOKENS -->
     <div class="tab" id="tab_wallet">
       <div class="balanceBlock fade">
         <div class="balanceK" id="wK">Баланс</div>
@@ -544,7 +556,7 @@
   tg?.ready();
   tg?.expand();
 
-  // ---------- THEME ----------
+  // ---------- THEME (Telegram dark/light) ----------
   function isDarkByScheme(){
     return (tg?.colorScheme === "dark") || (window.matchMedia("(prefers-color-scheme: dark)").matches);
   }
@@ -553,11 +565,16 @@
     const p = tg?.themeParams || {};
     const dark = isDarkByScheme();
 
+    // Telegram themeParams can be partial; fallback ensures readability
     const bg = p.bg_color || (dark ? "#0b0f14" : "#f7f8fc");
     const text = p.text_color || (dark ? "#e9eef5" : "#0f172a");
-    const muted = p.hint_color || (dark ? "rgba(233,238,245,.70)" : "rgba(15,23,42,.62)");
+
+    // ✅ PATCH #2: muted is stable per dark/light (so small gray text is always readable)
+    const muted = dark ? "rgba(233,238,245,.72)" : "rgba(15,23,42,.58)";
+
     const accent = p.button_color || (dark ? "#4da3ff" : "#2b7cff");
 
+    // Make cards readable in both themes with "minimal unusual" glass background
     const stroke = dark ? "rgba(255,255,255,.10)" : "rgba(15,23,42,.10)";
     const card = dark ? "rgba(255,255,255,.06)" : "rgba(15,23,42,.04)";
     const card2 = dark ? "rgba(255,255,255,.04)" : "rgba(15,23,42,.03)";
@@ -571,15 +588,18 @@
     document.documentElement.style.setProperty("--card", card);
     document.documentElement.style.setProperty("--card2", card2);
     document.documentElement.style.setProperty("--accent", accent);
+
+    // Slightly different accent2 for light mode to keep "Blum-ish"
     document.documentElement.style.setProperty("--accent2", dark ? "#7c5cff" : "#6a5cff");
 
+    // Optional: let Telegram main button style match accent
     try { tg?.MainButton?.setParams({ color: accent }); } catch(e){}
   }
 
   applyTheme();
   try { tg?.onEvent?.("themeChanged", applyTheme); } catch(e){}
 
-  // ---------- i18n ----------
+  // ---------- i18n (UI text) ----------
   const I18N = {
     uk: {
       uiTitle:"Najjednostavniji recepti",
@@ -629,17 +649,7 @@
       outSteps:"👨‍🍳 Кроки",
       outTime:"⏱ Час",
       noDish:"Немає страви під ці фільтри",
-      noTokens:"Немає токенів 😕",
-      howPopupTitle:"Як працює",
-      howPopupBody:"🎁 Trial 7 днів: всі функції безкоштовні.\nПісля trial: дії списують токени.\nЩодня є бонус, але з лімітом.",
-      bonusTitle:"Бонус",
-      bonusBody:"Перевірив бонус ✅\nЯкщо сьогодні ще не було — він вже нарахований.",
-      supportTitle:"Підтримка",
-      supportBody:"Напиши автору бота на адрессу: hnatykbt2112@gmail.com",
-      rulesTitle:"Token rules",
-      rulesBody:"Trial 7 днів: все безкоштовно.\nПісля trial: дії коштують токени.\nЩодня: бонусні токени (з лімітом).",
-      pricesTitle:"Pricing",
-      pricesBody:"Приклад:\n• Страва дня: 1\n• Інгредієнти: 1\n• Кроки: 2\n• Час: 1\n"
+      noTokens:"Немає токенів 😕"
     },
     hr: {
       uiTitle:"Najjednostavniji recepti",
@@ -689,17 +699,7 @@
       outSteps:"👨‍🍳 Koraci",
       outTime:"⏱ Vrijeme",
       noDish:"Nema jela za ove filtre",
-      noTokens:"Nema tokena 😕",
-      howPopupTitle:"Kako radi",
-      howPopupBody:"🎁 Trial 7 dana: sve je besplatno.\nNakon triala: radnje troše tokene.\nSvaki dan: bonus tokeni (limit).",
-      bonusTitle:"Bonus",
-      bonusBody:"Provjerio bonus ✅\nAko danas još nije bio — već je dodan.",
-      supportTitle:"Podrška",
-      supportBody:"Javi se autoru bota na: hnatykbt2112@gmail.com.",
-      rulesTitle:"Token rules",
-      rulesBody:"Trial 7 dana: sve besplatno.\nNakon: radnje koštaju tokene.\nDnevno: bonus tokeni (limit).",
-      pricesTitle:"Pricing",
-      pricesBody:"Primjer:\n• Jelo dana: 1\n• Sastojci: 1\n• Koraci: 2\n• Vrijeme: 1\n"
+      noTokens:"Nema tokena 😕"
     },
     en: {
       uiTitle:"Najjednostavniji recepti",
@@ -749,17 +749,7 @@
       outSteps:"👨‍🍳 Steps",
       outTime:"⏱ Time",
       noDish:"No dish matches these filters",
-      noTokens:"No tokens 😕",
-      howPopupTitle:"How it works",
-      howPopupBody:"🎁 7-day trial: everything is free.\nAfter trial: actions cost tokens.\nDaily: bonus tokens (limited).",
-      bonusTitle:"Bonus",
-      bonusBody:"Checked bonus ✅\nIf you didn’t get it today — it’s already added.",
-      supportTitle:"Support",
-      supportBody:"Message the bot author at hnatykbt2112@gmail.com.",
-      rulesTitle:"Token rules",
-      rulesBody:"7-day trial: free.\nAfter: actions cost tokens.\nDaily: bonus tokens (limited).",
-      pricesTitle:"Pricing",
-      pricesBody:"Example:\n• Daily dish: 1\n• Ingredients: 1\n• Steps: 2\n• Time: 1\n"
+      noTokens:"No tokens 😕"
     }
   };
 
@@ -943,9 +933,7 @@
   async function loadDaily(auto=false){
     const t = I18N[LANG] || I18N.uk;
     try{
-      // IMPORTANT: refresh_seed forces a new random dish on every click/refresh
-      const r = await api("/api/daily", "POST", { refresh_seed: String(Date.now()) });
-
+      const r = await api("/api/daily", "POST");
       renderDish(r.dish);
       renderOut("", null, 1);
       renderOut("", null, 2);
@@ -1010,8 +998,7 @@
 
   document.getElementById("goFilters").onclick = ()=> setTab("filters");
   document.getElementById("goHow").onclick = ()=>{
-    const t = I18N[LANG] || I18N.uk;
-    showPopup(t.howPopupTitle, t.howPopupBody);
+    showPopup("Як працює", "🎁 Trial 7 днів: всі функції безкоштовні.\nПісля trial: дії списують токени.\nЩодня є бонус, але з лімітом.");
   };
 
   document.getElementById("btnSave").onclick = async ()=>{
@@ -1037,55 +1024,31 @@
 
   document.getElementById("lang").onchange = async ()=>{
     const newLang = document.getElementById("lang").value;
-
-    // 1) save lang on server
-    try{
-      await api("/api/lang","POST",{lang:newLang});
-    }catch(e){
-      // if opened not in Telegram demo, /api/lang may fail – still switch UI locally
-    }
-
-    // 2) switch UI immediately
-    LANG = newLang;
-    setUi(LANG);
-
-    // 3) refresh status + load a new dish
+    await api("/api/lang","POST",{lang:newLang});
     await refreshStatus();
     await loadDaily(true);
   };
 
-  // Wallet tab actions (buy is still a placeholder unless your backend implements /api/buy)
-  document.getElementById("btnBuy").onclick = async ()=>{
-    const t = I18N[LANG] || I18N.uk;
-    try{
-      const pack = "p50";
-      const r = await api("/api/buy", "POST", {pack});
-      tg?.openInvoice?.(r.link, (status)=>{});
-    }catch(e){
-      showPopup("Error", "Buy: " + e.message);
-    }
+  document.getElementById("btnBuy").onclick = ()=>{
+    showPopup("Buy tokens", "Зараз це заглушка.\nДалі підключимо оплату через Telegram Stars.");
   };
 
   document.getElementById("btnBonus").onclick = async ()=>{
-    const t = I18N[LANG] || I18N.uk;
     await refreshStatus();
     haptic("success");
-    showPopup(t.bonusTitle, t.bonusBody);
+    showPopup("Bonus", "Перевірив бонус ✅\nЯкщо сьогодні ще не було — він вже нарахований.");
   };
 
   document.getElementById("btnSupport").onclick = ()=>{
-    const t = I18N[LANG] || I18N.uk;
-    showPopup(t.supportTitle, t.supportBody);
+    showPopup("Support", "Напиши автору бота або зробимо кнопку 'Support' яка відкриває чат.");
   };
 
   document.getElementById("wRules").onclick = ()=>{
-    const t = I18N[LANG] || I18N.uk;
-    showPopup(t.rulesTitle, t.rulesBody);
+    showPopup("Token rules", "Trial 7 днів: все безкоштовно.\nПісля trial: дії коштують токени.\nЩодня: бонусні токени (з лімітом).");
   };
 
   document.getElementById("wPrices").onclick = ()=>{
-    const t = I18N[LANG] || I18N.uk;
-    showPopup(t.pricesTitle, t.pricesBody);
+    showPopup("Pricing", "Приклад:\n• Страва дня: 1\n• Інгредієнти: 1\n• Кроки: 2\n• Час: 1\n(можемо змінити як хочеш)");
   };
 
   // ---------- Init ----------
