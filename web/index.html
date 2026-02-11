@@ -1027,9 +1027,24 @@
     await loadDaily(true);
   };
 
-  // Wallet tab actions (placeholders)
-  document.getElementById("btnBuy").onclick = ()=>{
-    showPopup("Buy tokens", "Зараз це заглушка.\nДалі підключимо оплату через Telegram Stars.");
+ document.getElementById("btnBuy").onclick = async ()=>{
+  const t = I18N[LANG] || I18N.uk;
+
+  try{
+    // choose pack (simple default)
+    const pack = "p50"; // or show your own picker UI
+    const r = await api("/api/buy", "POST", {pack});
+
+    // open Stars invoice inside Telegram
+    tg?.openInvoice?.(r.link, (status)=>{
+      // status can be: "paid", "cancelled", "failed", "pending"
+    });
+
+  }catch(e){
+    showPopup("Error", "Buy: " + e.message);
+  }
+};
+
   };
   document.getElementById("btnBonus").onclick = async ()=>{
     // Bonus already начисляється в /api/status once per day (apply_bonus).
