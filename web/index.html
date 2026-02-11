@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="hr">
+<html lang="uk">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -319,43 +319,43 @@
     <div class="header">
       <div>
         <h1 class="title" id="uiTitle">Najjednostavniji recepti</h1>
-        <p class="sub" id="uiSub">Cook Today • jelo dana • sastojci • koraci • filteri</p>
+        <p class="sub" id="uiSub">Cook Today • daily dish • ingredients • steps • filters</p>
       </div>
       <div class="pill" id="statusPill">
-        <span>🔍</span><span id="statusText">Učitavanje…</span>
+        <span>🔍</span><span id="statusText">Loading…</span>
       </div>
     </div>
 
     <div class="tab active" id="tab_home">
       <div class="balanceBlock fade">
-        <div class="balanceK" id="balK">Ukupni balans</div>
+        <div class="balanceK" id="balK">Balance</div>
         <div class="balanceV" id="balV">—</div>
         <div class="balanceMeta">
           <span class="pill" id="meta1">🎁 Trial: —</span>
-          <span class="pill" id="meta2">🪙 Tokeni: —</span>
+          <span class="pill" id="meta2">🪙 Tokens: —</span>
         </div>
 
         <div class="actionRow">
           <div class="actionBtn" id="btnDaily">
             <span class="actionIcon">⬇️</span>
-            <span id="tDaily">Jelo dana</span>
-            <div class="actionSub" id="tDailySub">Mijenja se svaki dan</div>
+            <span id="tDaily">Daily dish</span>
+            <div class="actionSub" id="tDailySub">Updates daily</div>
           </div>
           <div class="actionBtn" id="btnRecipe">
             <span class="actionIcon">⬆️</span>
-            <span id="tRecipe">Recept</span>
-            <div class="actionSub" id="tRecipeSub">Koraci pripreme</div>
+            <span id="tRecipe">Recipe</span>
+            <div class="actionSub" id="tRecipeSub">Steps</div>
           </div>
           <div class="actionBtn" id="btnWallet">
             <span class="actionIcon">↕️</span>
-            <span id="tWallet">Tokeni</span>
-            <div class="actionSub" id="tWalletSub">Stanje i bonusi</div>
+            <span id="tWallet">Tokens</span>
+            <div class="actionSub" id="tWalletSub">Balance</div>
           </div>
         </div>
       </div>
 
       <div class="card fade">
-        <div style="font-weight:950; font-size:14px" id="homeH">Današnje jelo</div>
+        <div style="font-weight:950; font-size:14px" id="homeH">Today's dish</div>
         <div id="dishBox" class="dish" style="display:none"></div>
         <div id="outBox" class="out" style="display:none"></div>
 
@@ -364,8 +364,8 @@
             <div class="itemL">
               <div class="badge">⚙️</div>
               <div class="itemText">
-                <div class="itemTitle" id="homeFiltersT">Postavke / Filteri</div>
-                <div class="itemDesc" id="homeFiltersD">Dijeta, vrijeme, izbacivanje sastojaka</div>
+                <div class="itemTitle" id="homeFiltersT">Settings / Filters</div>
+                <div class="itemDesc" id="homeFiltersD">Diet, time, exclusions</div>
               </div>
             </div>
             <div class="chev">›</div>
@@ -375,8 +375,8 @@
             <div class="itemL">
               <div class="badge">📌</div>
               <div class="itemText">
-                <div class="itemTitle" id="homeHowT">Kako radi</div>
-                <div class="itemDesc" id="homeHowD">Trial 7 dana, zatim tokeni + bonusi</div>
+                <div class="itemTitle" id="homeHowT">How it works</div>
+                <div class="itemDesc" id="homeHowD">Trial → tokens + bonus</div>
               </div>
             </div>
             <div class="chev">›</div>
@@ -387,23 +387,23 @@
 
     <div class="tab" id="tab_recipe">
       <div class="card fade">
-        <div style="font-weight:950; font-size:14px" id="recH">Recept</div>
+        <div style="font-weight:950; font-size:14px" id="recH">Recipe</div>
 
         <div class="actionRow" style="margin-top:12px">
           <div class="actionBtn" id="btnIng">
             <span class="actionIcon">🧾</span>
-            <span id="tIng">Sastojci</span>
-            <div class="actionSub" id="tIngSub">Popis namirnica</div>
+            <span id="tIng">Ingredients</span>
+            <div class="actionSub" id="tIngSub">List</div>
           </div>
           <div class="actionBtn" id="btnSteps">
             <span class="actionIcon">👨‍🍳</span>
-            <span id="tSteps">Koraci</span>
-            <div class="actionSub" id="tStepsSub">Korak po korak</div>
+            <span id="tSteps">Steps</span>
+            <div class="actionSub" id="tStepsSub">How to</div>
           </div>
           <div class="actionBtn" id="btnTime">
             <span class="actionIcon">⏱</span>
-            <span id="tTime">Vrijeme</span>
-            <div class="actionSub" id="tTimeSub">Otprilike</div>
+            <span id="tTime">Time</span>
+            <div class="actionSub" id="tTimeSub">Approx</div>
           </div>
         </div>
 
@@ -414,18 +414,20 @@
 
     <div class="tab" id="tab_filters">
       <div class="card fade">
-        <div style="font-weight:950; font-size:14px" id="filH">Postavke</div>
+        <div style="font-weight:950; font-size:14px" id="filH">Settings</div>
 
         <div class="formGrid">
           <div class="field">
-            <label id="lLang">🌏 Jezik</label>
-            <select id="lang" disabled>
-              <option value="hr">hr</option>
+            <label id="lLang">🌏 Language</label>
+            <select id="lang">
+              <option value="uk">Українська</option>
+              <option value="hr">Hrvatski</option>
+              <option value="en">English</option>
             </select>
           </div>
 
           <div class="field">
-            <label id="lDiet">Dijeta</label>
+            <label id="lDiet">Diet</label>
             <select id="diet">
               <option value="any">any</option>
               <option value="vegetarian">vegetarian</option>
@@ -435,7 +437,7 @@
           </div>
 
           <div class="field">
-            <label id="lMax">Max vrijeme</label>
+            <label id="lMax">Max time</label>
             <select id="max_time">
               <option value="0">∞</option>
               <option value="15">15</option>
@@ -446,8 +448,8 @@
           </div>
 
           <div class="field">
-            <label id="lExcl">Izbaci (zarez)</label>
-            <input id="exclude" placeholder="luk, češnjak ..." />
+            <label id="lExcl">Exclude (comma)</label>
+            <input id="exclude" placeholder="onion, garlic ..." />
           </div>
         </div>
 
@@ -459,50 +461,50 @@
         </div>
 
         <div class="btnRow">
-          <button class="btn primary" id="btnSave">💾 <span id="tSave">Spremi</span></button>
-          <button class="btn" id="btnRefresh">🔄 <span id="tRefresh">Osvježi</span></button>
+          <button class="btn primary" id="btnSave">💾 <span id="tSave">Save</span></button>
+          <button class="btn" id="btnRefresh">🔄 <span id="tRefresh">Refresh</span></button>
         </div>
       </div>
     </div>
 
     <div class="tab" id="tab_wallet">
       <div class="balanceBlock fade">
-        <div class="balanceK" id="wK">Stanje</div>
+        <div class="balanceK" id="wK">Balance</div>
         <div class="balanceV" id="wV">—</div>
         <div class="balanceMeta">
           <span class="pill" id="wMeta1">🎁 Trial: —</span>
-          <span class="pill" id="wMeta2">🪙 Tokeni: —</span>
+          <span class="pill" id="wMeta2">🪙 Tokens: —</span>
         </div>
 
         <div class="actionRow">
           <div class="actionBtn" id="btnBuy">
             <span class="actionIcon">⬇️</span>
-            <span id="tBuy">Kupi</span>
-            <div class="actionSub" id="tBuySub">Tokeni / Stars</div>
+            <span id="tBuy">Buy</span>
+            <div class="actionSub" id="tBuySub">Tokens / Stars</div>
           </div>
           <div class="actionBtn" id="btnBonus">
             <span class="actionIcon">🎁</span>
             <span id="tBonus">Bonus</span>
-            <div class="actionSub" id="tBonusSub">Dnevno ograničeno</div>
+            <div class="actionSub" id="tBonusSub">Daily limited</div>
           </div>
           <div class="actionBtn" id="btnSupport">
             <span class="actionIcon">💬</span>
-            <span id="tSupport">Podrška</span>
-            <div class="actionSub" id="tSupportSub">Pitanja / bugovi</div>
+            <span id="tSupport">Support</span>
+            <div class="actionSub" id="tSupportSub">Help</div>
           </div>
         </div>
       </div>
 
       <div class="card fade">
-        <div style="font-weight:950; font-size:14px" id="wH">Novčanik</div>
+        <div style="font-weight:950; font-size:14px" id="wH">Wallet</div>
 
         <div class="list">
           <div class="item" id="wRules">
             <div class="itemL">
               <div class="badge">📜</div>
               <div class="itemText">
-                <div class="itemTitle" id="wRulesT">Pravila tokena</div>
-                <div class="itemDesc" id="wRulesD">Trial 7 dana → zatim tokeni + bonusi</div>
+                <div class="itemTitle" id="wRulesT">Rules</div>
+                <div class="itemDesc" id="wRulesD">Trial → tokens + bonus</div>
               </div>
             </div>
             <div class="chev">›</div>
@@ -512,8 +514,8 @@
             <div class="itemL">
               <div class="badge">💳</div>
               <div class="itemText">
-                <div class="itemTitle" id="wPricesT">Cijene</div>
-                <div class="itemDesc" id="wPricesD">Koliko košta radnja nakon trial</div>
+                <div class="itemTitle" id="wPricesT">Pricing</div>
+                <div class="itemDesc" id="wPricesD">Feature costs</div>
               </div>
             </div>
             <div class="chev">›</div>
@@ -525,22 +527,21 @@
 
   <div class="tabbar">
     <div class="tabbarInner">
-      <div class="tabbtn active" data-tab="home"><div class="ic">🏠</div><div class="lb" id="tbHome">Početna</div></div>
-      <div class="tabbtn" data-tab="recipe"><div class="ic">📖</div><div class="lb" id="tbRecipe">Recept</div></div>
-      <div class="tabbtn" data-tab="filters"><div class="ic">⚙️</div><div class="lb" id="tbFilters">Filteri</div></div>
-      <div class="tabbtn" data-tab="wallet"><div class="ic">👛</div><div class="lb" id="tbWallet">Novčanik</div></div>
+      <div class="tabbtn active" data-tab="home"><div class="ic">🏠</div><div class="lb" id="tbHome">Home</div></div>
+      <div class="tabbtn" data-tab="recipe"><div class="ic">📖</div><div class="lb" id="tbRecipe">Recipe</div></div>
+      <div class="tabbtn" data-tab="filters"><div class="ic">⚙️</div><div class="lb" id="tbFilters">Filters</div></div>
+      <div class="tabbtn" data-tab="wallet"><div class="ic">👛</div><div class="lb" id="tbWallet">Wallet</div></div>
     </div>
   </div>
 
 <script>
   const tg = window.Telegram?.WebApp;
-  tg?.ready?.();
-  tg?.expand?.();
+  try { tg?.ready?.(); tg?.expand?.(); } catch(e){}
 
+  // THEME
   function isDarkByScheme(){
     return (tg?.colorScheme === "dark") || (window.matchMedia("(prefers-color-scheme: dark)").matches);
   }
-
   function applyTheme(){
     const p = tg?.themeParams || {};
     const dark = isDarkByScheme();
@@ -552,7 +553,6 @@
     const card = dark ? "rgba(255,255,255,.06)" : "rgba(15,23,42,.04)";
     const card2 = dark ? "rgba(255,255,255,.04)" : "rgba(15,23,42,.03)";
     const bg2 = dark ? "#070a0f" : "#eef1f8";
-
     document.documentElement.style.setProperty("--bg", bg);
     document.documentElement.style.setProperty("--bg2", bg2);
     document.documentElement.style.setProperty("--text", text);
@@ -562,11 +562,11 @@
     document.documentElement.style.setProperty("--card2", card2);
     document.documentElement.style.setProperty("--accent", accent);
     document.documentElement.style.setProperty("--accent2", dark ? "#7c5cff" : "#6a5cff");
-    try { tg?.MainButton?.setParams?.({ color: accent }); } catch(e){}
   }
   applyTheme();
   try { tg?.onEvent?.("themeChanged", applyTheme); } catch(e){}
 
+  // i18n
   const I18N = {
     uk: {
       uiTitle:"Najjednostavniji recepti",
@@ -609,18 +609,16 @@
       support:"Підтримка",
       supportSub:"Питання / баги",
       rulesT:"Правила токенів",
+      rulesD:"Trial 7 днів → потім токени + бонуси",
       pricesT:"Прайс",
+      pricesD:"Скільки коштує дія після trial",
       outIng:"🧾 Інгредієнти",
       outSteps:"👨‍🍳 Кроки",
       outTime:"⏱ Час",
       noDish:"Немає страви під ці фільтри",
       noTokens:"Немає токенів 😕",
       howTitle:"Як працює",
-      howMsg:"🎁 Trial 7 днів: все безкоштовно.\nПісля trial: дії списують токени.\nОновити: дає іншу страву під фільтри.",
-      bonusTitle:"Бонус",
-      bonusMsg:"Перевірив бонус ✅\nЯкщо сьогодні ще не було — вже нараховано.",
-      rulesMsg:"Trial 7 днів: все безкоштовно.\nПісля trial: дії коштують токени.\nЩодня: бонус (з лімітом).",
-      pricesMsg:"Приклад:\n• Страва дня: 1\n• Інгредієнти: 1\n• Кроки: 2\n• Час: 1"
+      howMsg:"🎁 Trial 7 днів: все безкоштовно.\nПісля trial: дії списують токени.\nRefresh: дає іншу страву під фільтри."
     },
     hr: {
       uiTitle:"Najjednostavniji recepti",
@@ -663,18 +661,16 @@
       support:"Podrška",
       supportSub:"Pitanja / bugovi",
       rulesT:"Pravila tokena",
+      rulesD:"Trial 7 dana → zatim tokeni + bonusi",
       pricesT:"Cijene",
+      pricesD:"Koliko košta radnja nakon trial",
       outIng:"🧾 Sastojci",
       outSteps:"👨‍🍳 Koraci",
       outTime:"⏱ Vrijeme",
       noDish:"Nema jela za ove filtre",
       noTokens:"Nema tokena 😕",
       howTitle:"Kako radi",
-      howMsg:"🎁 Trial 7 dana: sve je besplatno.\nNakon trial: radnje troše tokene.\nOsvježi: daje drugo jelo po filterima.",
-      bonusTitle:"Bonus",
-      bonusMsg:"Provjerio bonus ✅\nAko danas još nije bio — već je dodan.",
-      rulesMsg:"Trial 7 dana: sve besplatno.\nNakon trial: radnje koštaju tokene.\nSvaki dan: bonus (s limitom).",
-      pricesMsg:"Primjer:\n• Jelo dana: 1\n• Sastojci: 1\n• Koraci: 2\n• Vrijeme: 1"
+      howMsg:"🎁 Trial 7 dana: sve je besplatno.\nNakon trial: radnje troše tokene.\nRefresh: daje drugo jelo po filterima."
     },
     en: {
       uiTitle:"Najjednostavniji recepti",
@@ -717,18 +713,16 @@
       support:"Support",
       supportSub:"Questions / bugs",
       rulesT:"Token rules",
+      rulesD:"7-day trial → tokens + bonuses",
       pricesT:"Pricing",
+      pricesD:"Feature costs after trial",
       outIng:"🧾 Ingredients",
       outSteps:"👨‍🍳 Steps",
       outTime:"⏱ Time",
       noDish:"No dish matches these filters",
       noTokens:"No tokens 😕",
       howTitle:"How it works",
-      howMsg:"🎁 7-day trial: everything is free.\nAfter trial: actions cost tokens.\nRefresh: gets a different dish matching filters.",
-      bonusTitle:"Bonus",
-      bonusMsg:"Checked bonus ✅\nIf not used today — it’s already added.",
-      rulesMsg:"7-day trial: free.\nAfter trial: actions cost tokens.\nDaily bonus (with cap).",
-      pricesMsg:"Example:\n• Daily dish: 1\n• Ingredients: 1\n• Steps: 2\n• Time: 1"
+      howMsg:"🎁 7-day trial: everything is free.\nAfter trial: actions cost tokens.\nRefresh: gets a different dish matching filters."
     }
   };
 
@@ -736,16 +730,13 @@
   let STATUS = null;
   let DISH = null;
 
-  function setText(id, val){
-    const el = document.getElementById(id);
-    if(el) el.textContent = val;
-  }
-  function T(){
-    return I18N[LANG] || I18N.uk;
-  }
+  function T(){ return I18N[LANG] || I18N.uk; }
+  function setText(id, val){ const el=document.getElementById(id); if(el) el.textContent = val; }
 
   function setUi(){
     const t = T();
+    document.documentElement.lang = LANG;
+
     setText("uiTitle", t.uiTitle);
     setText("uiSub", t.uiSub);
     setText("balK", t.balanceK);
@@ -792,28 +783,27 @@
     setText("tSupport", t.support);
     setText("tSupportSub", t.supportSub);
     setText("wRulesT", t.rulesT);
+    setText("wRulesD", t.rulesD);
     setText("wPricesT", t.pricesT);
     setText("wPricesD", t.pricesD);
   }
 
   async function api(path, method="GET", body=null){
     const initData = tg?.initData || "";
-    const res = await fetch(path, {
-      method,
-      headers: {"Content-Type":"application/json","X-Telegram-Init-Data": initData},
-      body: body ? JSON.stringify(body) : null
-    });
+    const headers = {"Content-Type":"application/json"};
+    if(initData) headers["X-Telegram-Init-Data"] = initData;
+    const res = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : null });
     if(!res.ok) throw new Error(await res.text());
     return res.json();
   }
 
-  function haptic(kind="impact", style="light"){
+  function haptic(type="impact", style="light"){
     try{
       const h = tg?.HapticFeedback;
       if(!h) return;
-      if(kind==="impact") h.impactOccurred(style);
-      if(kind==="success") h.notificationOccurred("success");
-      if(kind==="error") h.notificationOccurred("error");
+      if(type==="impact") h.impactOccurred(style);
+      if(type==="success") h.notificationOccurred("success");
+      if(type==="error") h.notificationOccurred("error");
     }catch(e){}
   }
 
@@ -829,214 +819,10 @@
     DISH = dish;
     const b1 = document.getElementById("dishBox");
     const b2 = document.getElementById("dishBox2");
-
     if(!dish){
-      b1.style.display = "none";
-      b2.style.display = "none";
+      b1.style.display="none";
+      b2.style.display="none";
       return;
     }
 
-    const tags = (dish.tags || []).slice(0,6);
-    const chips = [
-      `<span class="chip accent">⏱ ~${dish.time_total_min} min</span>`,
-      ...tags.map(t=>`<span class="chip">${t}</span>`)
-    ].join("");
-
-    const html = `
-      <div class="dishName">${dish.title}</div>
-      <div class="chips">${chips}</div>
-      <div class="dishWhy">${dish.why || ""}</div>
-    `;
-    b1.innerHTML = html;
-    b2.innerHTML = html;
-    b1.style.display = "block";
-    b2.style.display = "block";
-  }
-
-  function renderOut(title, data, target=1){
-    const box = (target===1) ? document.getElementById("outBox") : document.getElementById("outBox2");
-    if(!data){
-      box.style.display = "none";
-      return;
-    }
-    const body = Array.isArray(data) ? data.map((x,i)=>`${i+1}. ${x}`).join("\n") : String(data);
-    box.innerHTML = `
-      <div class="outHead"><div class="outTitle">${title}</div><div class="chip">${DISH ? DISH.title : "—"}</div></div>
-      <pre>${body}</pre>
-    `;
-    box.style.display = "block";
-  }
-
-  function setStatusText(){
-    if(!STATUS) return;
-    const st = document.getElementById("statusText");
-    if(STATUS.trial){
-      st.textContent = `Trial: ${STATUS.trial_days_left} days`;
-    } else {
-      st.textContent = `Tokens: ${STATUS.tokens}`;
-    }
-  }
-
-  function renderWalletNumbers(){
-    if(!STATUS) return;
-    const trial = STATUS.trial;
-    const tokens = STATUS.tokens;
-
-    document.getElementById("balV").textContent = trial ? "TRIAL" : String(tokens);
-    document.getElementById("wV").textContent  = trial ? "TRIAL" : String(tokens);
-
-    document.getElementById("meta1").textContent = trial ? `🎁 Trial: ${STATUS.trial_days_left} days` : `🎁 Trial: 0 days`;
-    document.getElementById("meta2").textContent = `🪙 Tokens: ${tokens}`;
-
-    document.getElementById("wMeta1").textContent = trial ? `🎁 Trial: ${STATUS.trial_days_left} days` : `🎁 Trial: 0 days`;
-    document.getElementById("wMeta2").textContent = `🪙 Tokens: ${tokens}`;
-  }
-
-  async function refreshStatus(){
-    STATUS = await api("/api/status");
-    LANG = STATUS.lang || "uk";
-    document.documentElement.lang = LANG;
-    setUi();
-    setStatusText();
-    renderWalletNumbers();
-
-    document.getElementById("lang").value = LANG;
-    const f = STATUS.filters || {};
-    document.getElementById("diet").value = f.diet ?? "any";
-    document.getElementById("max_time").value = String(f.max_time ?? 0);
-    document.getElementById("exclude").value = (f.exclude||[]).join(", ");
-    ["gluten_free","lactose_free","high_protein","low_calorie"].forEach(k=>{
-      document.getElementById(k).checked = !!f[k];
-    });
-  }
-
-  async function loadDaily({reset=false} = {}){
-    const t = T();
-    try{
-      const r = await api("/api/daily", "POST", {reset});
-      renderDish(r.dish);
-      renderOut("", null, 1);
-      renderOut("", null, 2);
-
-      if(!r.dish){
-        showPopup("Info", t.noDish);
-      }
-      haptic("success");
-      await refreshStatus();
-    }catch(e){
-      if(String(e.message).includes("NO_TOKENS")){
-        haptic("error");
-        showPopup("Oops", t.noTokens);
-      } else {
-        showPopup("Error", "Daily: " + e.message);
-      }
-      await refreshStatus();
-    }
-  }
-
-  async function loadAction(action){
-    const t = T();
-    try{
-      const r = await api("/api/action", "POST", {action});
-      if(action==="ingredients") renderOut(t.outIng, r.data, 2);
-      if(action==="steps") renderOut(t.outSteps, r.data, 2);
-      if(action==="time") renderOut(t.outTime, (r.data ?? 0) + " min", 2);
-      haptic("impact","light");
-      await refreshStatus();
-    }catch(e){
-      if(String(e.message).includes("NO_TOKENS")){
-        haptic("error");
-        showPopup("Oops", t.noTokens);
-      } else {
-        showPopup("Error", action + ": " + e.message);
-      }
-      await refreshStatus();
-    }
-  }
-
-  function setTab(name){
-    ["home","recipe","filters","wallet"].forEach(x=>{
-      document.getElementById("tab_"+x).classList.toggle("active", x===name);
-      document.querySelector(`.tabbtn[data-tab="${x}"]`).classList.toggle("active", x===name);
-    });
-    haptic("impact","light");
-  }
-
-  document.querySelectorAll(".tabbtn").forEach(btn=>{
-    btn.addEventListener("click", ()=> setTab(btn.dataset.tab));
-  });
-
-  // -------- Buttons wiring --------
-  document.getElementById("btnDaily").onclick = ()=> loadDaily({reset:false});
-  document.getElementById("btnRecipe").onclick = ()=> setTab("recipe");
-  document.getElementById("btnWallet").onclick = ()=> setTab("wallet");
-
-  document.getElementById("btnIng").onclick = ()=> loadAction("ingredients");
-  document.getElementById("btnSteps").onclick = ()=> loadAction("steps");
-  document.getElementById("btnTime").onclick = ()=> loadAction("time");
-
-  document.getElementById("goFilters").onclick = ()=> setTab("filters");
-  document.getElementById("goHow").onclick = ()=> showPopup(T().howTitle, T().howMsg);
-
-  document.getElementById("btnSave").onclick = async ()=>{
-    const payload = {
-      diet: document.getElementById("diet").value,
-      max_time: parseInt(document.getElementById("max_time").value, 10),
-      gluten_free: document.getElementById("gluten_free").checked,
-      lactose_free: document.getElementById("lactose_free").checked,
-      high_protein: document.getElementById("high_protein").checked,
-      low_calorie: document.getElementById("low_calorie").checked,
-      exclude: document.getElementById("exclude").value.split(",").map(s=>s.trim()).filter(Boolean)
-    };
-    await api("/api/filters", "POST", payload);
-    haptic("success");
-    await refreshStatus();
-    // після зміни фільтрів — нова страва
-    await loadDaily({reset:true});
-  };
-
-  // ✅ Refresh = reset dish-of-day
-  document.getElementById("btnRefresh").onclick = async ()=>{
-    await refreshStatus();
-    await loadDaily({reset:true});
-  };
-
-  document.getElementById("lang").onchange = async ()=>{
-    const newLang = document.getElementById("lang").value;
-    await api("/api/lang","POST",{lang:newLang});
-    await refreshStatus();
-    // після зміни мови — нова страва вже цією мовою
-    await loadDaily({reset:true});
-  };
-
-  // поки залишаємо заглушку (Stars додамо окремо, бо треба бекенд під invoice + webhook)
-  document.getElementById("btnBuy").onclick = ()=>{
-    showPopup("Stars", "Stars оплату підключимо наступним кроком через invoice + підтвердження платежу на бекенді.");
-  };
-
-  document.getElementById("btnBonus").onclick = async ()=>{
-    await refreshStatus();
-    haptic("success");
-    showPopup(T().bonusTitle, T().bonusMsg);
-  };
-
-  document.getElementById("btnSupport").onclick = ()=>{
-    showPopup(T().support, "Support: напиши автору або додамо кнопку, що відкриває чат.");
-  };
-
-  document.getElementById("wRules").onclick = ()=> showPopup(T().rulesT, T().rulesMsg);
-  document.getElementById("wPrices").onclick = ()=> showPopup(T().pricesT, T().pricesMsg);
-
-  // -------- Init --------
-  (async ()=>{
-    try{
-      await refreshStatus();
-      await loadDaily({reset:false});
-    }catch(e){
-      showPopup("Open inside Telegram", "Це Mini App. Відкрий через бота.\n" + e.message);
-    }
-  })();
-</script>
-
-</body>
-</html>
+   
