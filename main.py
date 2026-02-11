@@ -13,10 +13,10 @@ DB_PATH = "db.json"
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
-# AI optional. Якщо ключа нема або модель недоступна -> fallback.
+# AI optional (може бути пустим — тоді працює fallback)
 AI_API_KEY = os.environ.get("AI_API_KEY", "")
 AI_ENDPOINT = os.environ.get("AI_ENDPOINT", "https://models.github.ai/inference")
-AI_MODEL = os.environ.get("AI_MODEL", "")  # ВАЖЛИВО: постав ту, до якої є доступ
+AI_MODEL = os.environ.get("AI_MODEL", "openai/gpt-4o-mini")
 
 if not BOT_TOKEN:
     raise RuntimeError("Set BOT_TOKEN env var.")
@@ -47,13 +47,14 @@ def health():
         "ok": True,
         "time": now().isoformat(),
         "has_web_index": os.path.exists("web/index.html"),
-        "ai_enabled": bool(AI_API_KEY and AI_MODEL),
-        "ai_endpoint": AI_ENDPOINT,
-        "ai_model": AI_MODEL or "(empty)",
+        "has_root_index": os.path.exists("index.html"),
+        "ai_enabled": bool(AI_API_KEY),
+        "model": AI_MODEL,
     }
 
 @app.get("/", response_class=HTMLResponse)
 def root():
+    # Mini App HTML
     if os.path.exists("web/index.html"):
         return FileResponse("web/index.html")
     if os.path.exists("index.html"):
@@ -165,25 +166,14 @@ def dish_matches_filters(d: Dict[str, Any], f: Dict[str, Any]) -> bool:
     return True
 
 
-# -------------------- HELPERS --------------------
-
-def strip_fences(s: str) -> str:
-    s = (s or "").strip()
-    s = re.sub(r"^```(json)?", "", s).strip()
-    s = re.sub(r"```$", "", s).strip()
-    return s
-
-def lang_name(lang: str) -> str:
-    return {"uk": "Ukrainian", "hr": "Croatian", "en": "English"}.get(lang, "Ukrainian")
+# -------------------- “MINI AI” (FAST FALLBACK GENERATOR) --------------------
 
 def stable_index(uid: int, day: str, n: int) -> int:
     h = hashlib.sha256(f"{uid}:{day}".encode("utf-8")).hexdigest()
     return int(h[:8], 16) % max(1, n)
 
-
-# -------------------- FAST FALLBACK POOL --------------------
-
 def fallback_pool(lang: str, n: int = 10) -> List[Dict[str, Any]]:
+    # Швидкий офлайн-пул на 10 страв (без AI, без мережі)
     if lang == "hr":
         items = [
             ("Omlet sa sirom", "Brzo i jednostavno.", ["jaja","sir","sol","papar"], ["Umuti jaja","Dodaj sir","Prži 5–7 min"], 10, ["vegetarian","quick","high_protein"]),
@@ -194,7 +184,7 @@ def fallback_pool(lang: str, n: int = 10) -> List[Dict[str, Any]]:
             ("Jogurt bowl", "Bez kuhanja.", ["jogurt","voće","med"], ["Stavi u zdjelu","Dodaj voće","Med"], 5, ["vegetarian","quick"]),
             ("Salata od slanutka", "Vegan + proteini.", ["slanutak","luk","rajčica","limun"], ["Pomiješaj","Začini"], 10, ["vegan","high_protein","quick"]),
             ("Piletina na tavi", "Proteinski obrok.", ["piletina","sol","papar","ulje"], ["Začini","Ispeci 10–12 min"], 15, ["high_protein","quick"]),
-            ("Tost s avokadom", "Gotovo za par minuta.", ["kruh","avokado","sol","limun"], ["Zgnječi","Namaži","Začini"], 7, ["vegan","quick"]),
+            ("Tost s avokadom", "Gotovo za par minuta.", ["kruh","avokado","sol","limun"], ["Zgnječi avokado","Namaži","Začini"], 7, ["vegan","quick"]),
             ("Juha od rajčice", "Toplo i brzo.", ["rajčica","temeljac","sol"], ["Zagrij","Kuhaj 10 min"], 15, ["vegan"]),
         ]
     elif lang == "en":
@@ -207,7 +197,7 @@ def fallback_pool(lang: str, n: int = 10) -> List[Dict[str, Any]]:
             ("Yogurt bowl", "No cooking.", ["yogurt","fruit","honey"], ["Add yogurt","Add fruit","Honey"], 5, ["vegetarian","quick"]),
             ("Chickpea salad", "Vegan + protein.", ["chickpeas","onion","tomato","lemon"], ["Mix","Season"], 10, ["vegan","high_protein","quick"]),
             ("Pan chicken", "Protein meal.", ["chicken","salt","pepper","oil"], ["Season","Pan-fry 10–12 min"], 15, ["high_protein","quick"]),
-            ("Avocado toast", "Ready in minutes.", ["bread","avocado","salt","lemon"], ["Mash","Spread","Season"], 7, ["vegan","quick"]),
+            ("Avocado toast", "Ready in minutes.", ["bread","avocado","salt","lemon"], ["Mash avocado","Spread","Season"], 7, ["vegan","quick"]),
             ("Tomato soup", "Warm and quick.", ["tomatoes","broth","salt"], ["Heat","Simmer 10 min"], 15, ["vegan"]),
         ]
     else:
@@ -236,14 +226,12 @@ def fallback_pool(lang: str, n: int = 10) -> List[Dict[str, Any]]:
         })
     return out
 
-
-# -------------------- AI POOL (SAFE) --------------------
-
 def ai_pool(lang: str, forbidden: List[str], n: int = 10) -> List[Dict[str, Any]]:
-    # Якщо AI не налаштований — fallback
-    if not (AI_API_KEY and AI_MODEL):
+    # Крок назад: щоб “точно працювало” — якщо AI не доступний, завжди fallback
+    if not AI_API_KEY:
         return fallback_pool(lang, n)
 
+    # Якщо хочеш спробувати AI — залиш, але якщо воно дає 403, все одно впаде у fallback
     try:
         from openai import OpenAI
         client = OpenAI(base_url=AI_ENDPOINT, api_key=AI_API_KEY)
@@ -253,7 +241,6 @@ def ai_pool(lang: str, forbidden: List[str], n: int = 10) -> List[Dict[str, Any]
         user = f"""
 Generate {n} different dish ideas in {lang_name(lang)} for today.
 Forbidden titles: [{forb}]
-
 Return JSON ARRAY of objects with keys:
 title, why, ingredients[], steps[], time_total_min, tags[]
 tags MUST be English from: {sorted(list(ALLOWED_TAGS))}
@@ -262,7 +249,7 @@ Only JSON ARRAY.
 
         r = client.chat.completions.create(
             model=AI_MODEL,
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            messages=[{"role":"system","content":system},{"role":"user","content":user}],
             temperature=1.0,
         )
 
@@ -271,29 +258,23 @@ Only JSON ARRAY.
         for it in data:
             if not isinstance(it, dict):
                 continue
-            title = str(it.get("title", "")).strip()
+            title = str(it.get("title","")).strip()
             if not title:
                 continue
             tags = [t for t in (it.get("tags") or []) if t in ALLOWED_TAGS]
             out.append({
                 "title": title[:80],
-                "why": str(it.get("why", ""))[:240],
+                "why": str(it.get("why",""))[:240],
                 "ingredients": [str(x)[:120] for x in (it.get("ingredients") or []) if str(x).strip()],
                 "steps": [str(x)[:200] for x in (it.get("steps") or []) if str(x).strip()],
-                "time_total_min": int(it.get("time_total_min", 30) or 30),
+                "time_total_min": int(it.get("time_total_min",30) or 30),
                 "tags": tags,
             })
-
-        # Якщо AI віддав сміття — fallback
         if len(out) < 3:
             return fallback_pool(lang, n)
-
         return out[:n]
-
     except Exception:
-        # 403 / no_access / network / JSON errors -> fallback
         return fallback_pool(lang, n)
-
 
 def get_pool(db: Dict[str, Any], lang: str) -> List[Dict[str, Any]]:
     d = today()
@@ -311,16 +292,13 @@ def get_pool(db: Dict[str, Any], lang: str) -> List[Dict[str, Any]]:
     db["used_titles"][lang] = db["used_titles"][lang][-500:]
     return pool
 
-
 def pick_daily(db: Dict[str, Any], uid: int, u: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     lang = u.get("lang", "uk")
     pool = get_pool(db, lang)
     f = u.get("filters", default_filters())
-
     matches = [d for d in pool if dish_matches_filters(d, f)]
     if not matches:
         return None
-
     idx = stable_index(uid, today(), len(matches))
     return matches[idx]
 
@@ -430,6 +408,7 @@ def api_daily(x_telegram_init_data: str = Header(default="")):
         u = get_user(db, user_id)
         apply_bonus(u)
 
+        # Після trial: списуємо токени 1 раз/день за “страву дня”
         if not is_trial(u):
             if u.get("daily_paid") != today():
                 if not charge(u, "daily"):
