@@ -9,7 +9,6 @@
 
   <style>
     :root{
-
       --bg: #0b0f14;
       --bg2:#070a0f;
       --text:#e9eef5;
@@ -235,7 +234,7 @@
       outline:none;
     }
 
-    /* ✅ PATCH #1: was option{color:#111} */
+    /* ✅ PATCH #1 */
     option{color:inherit}
 
     .checks{
@@ -338,7 +337,7 @@
       </div>
     </div>
 
-    <!-- TAB: HOME / WALLET-LIKE OVERVIEW -->
+    <!-- TAB: HOME -->
     <div class="tab active" id="tab_home">
       <div class="balanceBlock fade">
         <div class="balanceK" id="balK">Общий баланс</div>
@@ -426,7 +425,7 @@
       </div>
     </div>
 
-    <!-- TAB: FILTERS (like separate wallet tab) -->
+    <!-- TAB: FILTERS -->
     <div class="tab" id="tab_filters">
       <div class="card fade">
         <div style="font-weight:950; font-size:14px" id="filH">Налаштування</div>
@@ -482,7 +481,7 @@
       </div>
     </div>
 
-    <!-- TAB: WALLET / TOKENS -->
+    <!-- TAB: WALLET -->
     <div class="tab" id="tab_wallet">
       <div class="balanceBlock fade">
         <div class="balanceK" id="wK">Баланс</div>
@@ -556,7 +555,7 @@
   tg?.ready();
   tg?.expand();
 
-  // ---------- THEME (Telegram dark/light) ----------
+  // ---------- THEME ----------
   function isDarkByScheme(){
     return (tg?.colorScheme === "dark") || (window.matchMedia("(prefers-color-scheme: dark)").matches);
   }
@@ -565,16 +564,14 @@
     const p = tg?.themeParams || {};
     const dark = isDarkByScheme();
 
-    // Telegram themeParams can be partial; fallback ensures readability
     const bg = p.bg_color || (dark ? "#0b0f14" : "#f7f8fc");
     const text = p.text_color || (dark ? "#e9eef5" : "#0f172a");
 
-    // ✅ PATCH #2: muted is stable per dark/light (so small gray text is always readable)
+    // ✅ muted stable per dark/light
     const muted = dark ? "rgba(233,238,245,.72)" : "rgba(15,23,42,.58)";
 
     const accent = p.button_color || (dark ? "#4da3ff" : "#2b7cff");
 
-    // Make cards readable in both themes with "minimal unusual" glass background
     const stroke = dark ? "rgba(255,255,255,.10)" : "rgba(15,23,42,.10)";
     const card = dark ? "rgba(255,255,255,.06)" : "rgba(15,23,42,.04)";
     const card2 = dark ? "rgba(255,255,255,.04)" : "rgba(15,23,42,.03)";
@@ -588,18 +585,15 @@
     document.documentElement.style.setProperty("--card", card);
     document.documentElement.style.setProperty("--card2", card2);
     document.documentElement.style.setProperty("--accent", accent);
-
-    // Slightly different accent2 for light mode to keep "Blum-ish"
     document.documentElement.style.setProperty("--accent2", dark ? "#7c5cff" : "#6a5cff");
 
-    // Optional: let Telegram main button style match accent
     try { tg?.MainButton?.setParams({ color: accent }); } catch(e){}
   }
 
   applyTheme();
   try { tg?.onEvent?.("themeChanged", applyTheme); } catch(e){}
 
-  // ---------- i18n (UI text) ----------
+  // ---------- i18n ----------
   const I18N = {
     uk: {
       uiTitle:"Najjednostavniji recepti",
@@ -649,7 +643,19 @@
       outSteps:"👨‍🍳 Кроки",
       outTime:"⏱ Час",
       noDish:"Немає страви під ці фільтри",
-      noTokens:"Немає токенів 😕"
+      noTokens:"Немає токенів 😕",
+
+      // ✅ POPUPS (Wallet)
+      popup_buy_title:"Купити токени",
+      popup_buy_msg:"Зараз це заглушка.\nДалі підключимо оплату через Telegram Stars.",
+      popup_bonus_title:"Бонус",
+      popup_bonus_msg:"Перевірив бонус ✅\nЯкщо сьогодні ще не було — він вже нарахований.",
+      popup_support_title:"Підтримка",
+      popup_support_msg:"Напиши автору бота на адрессу: hnatykbt2112@gmail.com",
+      popup_rules_title:"Правила токенів",
+      popup_rules_msg:"Trial 7 днів: все безкоштовно.\nПісля trial: дії коштують токени.\nЩодня: бонусні токени (з лімітом).",
+      popup_prices_title:"Прайс",
+      popup_prices_msg:"Приклад:\n• Страва дня: 1\n• Інгредієнти: 1\n• Кроки: 2\n• Час: 1\n"
     },
     hr: {
       uiTitle:"Najjednostavniji recepti",
@@ -699,7 +705,19 @@
       outSteps:"👨‍🍳 Koraci",
       outTime:"⏱ Vrijeme",
       noDish:"Nema jela za ove filtre",
-      noTokens:"Nema tokena 😕"
+      noTokens:"Nema tokena 😕",
+
+      // ✅ POPUPS (Wallet)
+      popup_buy_title:"Kupi tokene",
+      popup_buy_msg:"Trenutno je ovo demo.\nKasnije povezujemo plaćanje preko Telegram Stars.",
+      popup_bonus_title:"Bonus",
+      popup_bonus_msg:"Provjerio bonus ✅\nAko danas još nije bio — već je dodan.",
+      popup_support_title:"Podrška",
+      popup_support_msg:"Piši autoru bota na adresu: hnatykbt2112@gmail.com",
+      popup_rules_title:"Pravila tokena",
+      popup_rules_msg:"Trial 7 dana: sve je besplatno.\nNakon triala: radnje troše tokene.\nSvaki dan: bonus tokeni (uz limit).",
+      popup_prices_title:"Cijene",
+      popup_prices_msg:"Primjer:\n• Jelo dana: 1\n• Sastojci: 1\n• Koraci: 2\n• Vrijeme: 1\n"
     },
     en: {
       uiTitle:"Najjednostavniji recepti",
@@ -749,7 +767,19 @@
       outSteps:"👨‍🍳 Steps",
       outTime:"⏱ Time",
       noDish:"No dish matches these filters",
-      noTokens:"No tokens 😕"
+      noTokens:"No tokens 😕",
+
+      // ✅ POPUPS (Wallet)
+      popup_buy_title:"Buy tokens",
+      popup_buy_msg:"This is a placeholder for now.\nNext we’ll connect Telegram Stars payments.",
+      popup_bonus_title:"Bonus",
+      popup_bonus_msg:"Checked bonus ✅\nIf you didn’t get it today yet — it’s already added.",
+      popup_support_title:"Support",
+      popup_support_msg:"Email the bot author: hnatykbt2112@gmail.com",
+      popup_rules_title:"Token rules",
+      popup_rules_msg:"7-day trial: everything is free.\nAfter trial: actions cost tokens.\nDaily: bonus tokens (with a limit).",
+      popup_prices_title:"Pricing",
+      popup_prices_msg:"Example:\n• Daily dish: 1\n• Ingredients: 1\n• Steps: 2\n• Time: 1\n"
     }
   };
 
@@ -998,6 +1028,7 @@
 
   document.getElementById("goFilters").onclick = ()=> setTab("filters");
   document.getElementById("goHow").onclick = ()=>{
+    // (optional) could also i18n this later
     showPopup("Як працює", "🎁 Trial 7 днів: всі функції безкоштовні.\nПісля trial: дії списують токени.\nЩодня є бонус, але з лімітом.");
   };
 
@@ -1029,26 +1060,32 @@
     await loadDaily(true);
   };
 
+  // ✅ Wallet popups NOW use selected language
   document.getElementById("btnBuy").onclick = ()=>{
-    showPopup("Buy tokens", "Зараз це заглушка.\nДалі підключимо оплату через Telegram Stars.");
+    const t = I18N[LANG] || I18N.uk;
+    showPopup(t.popup_buy_title, t.popup_buy_msg);
   };
 
   document.getElementById("btnBonus").onclick = async ()=>{
+    const t = I18N[LANG] || I18N.uk;
     await refreshStatus();
     haptic("success");
-    showPopup("Bonus", "Перевірив бонус ✅\nЯкщо сьогодні ще не було — він вже нарахований.");
+    showPopup(t.popup_bonus_title, t.popup_bonus_msg);
   };
 
   document.getElementById("btnSupport").onclick = ()=>{
-    showPopup("Support", "Напиши автору бота на адрессу: hnatykbt2112@gmail.com");
+    const t = I18N[LANG] || I18N.uk;
+    showPopup(t.popup_support_title, t.popup_support_msg);
   };
 
   document.getElementById("wRules").onclick = ()=>{
-    showPopup("Token rules", "Trial 7 днів: все безкоштовно.\nПісля trial: дії коштують токени.\nЩодня: бонусні токени (з лімітом).");
+    const t = I18N[LANG] || I18N.uk;
+    showPopup(t.popup_rules_title, t.popup_rules_msg);
   };
 
   document.getElementById("wPrices").onclick = ()=>{
-    showPopup("Pricing", "Приклад:\n• Страва дня: 1\n• Інгредієнти: 1\n• Кроки: 2\n• Час: 1\n");
+    const t = I18N[LANG] || I18N.uk;
+    showPopup(t.popup_prices_title, t.popup_prices_msg);
   };
 
   // ---------- Init ----------
