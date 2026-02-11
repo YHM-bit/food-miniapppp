@@ -3,20 +3,22 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import parse_qsl
 from typing import Dict, Any, List, Optional
-
 from threading import Lock
 
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 
 TZ = ZoneInfo("Europe/Uzhgorod")
 DB_PATH = "db.json"
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
-# AI env залишаю, але тепер не використовується — генерація локальна і швидка
-AI_API_KEY = os.environ.get("AI_API_KEY", "")
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+AI_API_KEY = os.environ.get("AI_API_KEY")  # (не використовується в цьому швидкому генераторі)
 AI_ENDPOINT = os.environ.get("AI_ENDPOINT", "https://models.github.ai/inference")
 AI_MODEL = os.environ.get("AI_MODEL", "openai/gpt-4o-mini")
+
+# Для прод можна не падати, але краще хай видно проблему
+if not BOT_TOKEN:
+    raise RuntimeError("Set BOT_TOKEN env var.")
 
 LOCK = Lock()
 
@@ -42,19 +44,24 @@ app = FastAPI()
 def health():
     return {
         "ok": True,
-        "exists": {
+        "files": {
             "web/index.html": os.path.exists("web/index.html"),
-            "db.json": os.path.exists(DB_PATH),
-        },
-        "env": {"BOT_TOKEN": bool(BOT_TOKEN)},
+            "index.html": os.path.exists("index.html"),
+            "db.json": os.path.exists("db.json"),
+        }
     }
-
 
 @app.get("/", response_class=HTMLResponse)
 def root():
+    # Mini App HTML
     if os.path.exists("web/index.html"):
         return FileResponse("web/index.html")
-    return HTMLResponse("<h2>Missing web/index.html</h2>", status_code=500)
+    if os.path.exists("index.html"):
+        return FileResponse("index.html")
+    return HTMLResponse(
+        "<h2>index.html not found</h2><p>Expected: web/index.html</p>",
+        status_code=500
+    )
 
 
 # -------------------- TIME/DB --------------------
@@ -67,7 +74,7 @@ def today() -> str:
 
 def load_db() -> Dict[str, Any]:
     if not os.path.exists(DB_PATH):
-        return {"users": {}, "daily": {}}
+        return {"users": {}, "daily": {}, "used_titles": {"uk": [], "hr": [], "en": []}}
     with open(DB_PATH, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -77,13 +84,13 @@ def save_db(db: Dict[str, Any]) -> None:
 
 def default_filters() -> Dict[str, Any]:
     return {
-        "diet": "any",
+        "diet": "any",              # any | vegetarian | vegan | pescatarian
         "gluten_free": False,
         "lactose_free": False,
         "high_protein": False,
         "low_calorie": False,
-        "max_time": 0,
-        "exclude": [],
+        "max_time": 0,              # minutes; 0 = unlimited
+        "exclude": [],              # list[str]
     }
 
 def get_user(db: Dict[str, Any], uid: int) -> Dict[str, Any]:
@@ -98,18 +105,17 @@ def get_user(db: Dict[str, Any], uid: int) -> Dict[str, Any]:
             "last_bonus": "",
             "filters": default_filters(),
             "daily_paid": "",
-            # генератор буде памʼятати останні N страв, щоб не повторювало
-            "recent_titles": {"uk": [], "hr": [], "en": []},
+            "favorites": [],
+            "uploads": [],
+            "last_dish_sig": "",   # щоб не повторювало одне й те саме
         }
     u = db["users"][suid]
-    u.setdefault("lang", "uk")
-    u.setdefault("tokens", 15)
-    u.setdefault("filters", default_filters())
+    u.setdefault("favorites", [])
+    u.setdefault("uploads", [])
     u.setdefault("daily_paid", "")
-    u.setdefault("recent_titles", {"uk": [], "hr": [], "en": []})
-    u["recent_titles"].setdefault("uk", [])
-    u["recent_titles"].setdefault("hr", [])
-    u["recent_titles"].setdefault("en", [])
+    u.setdefault("last_dish_sig", "")
+    if "filters" not in u:
+        u["filters"] = default_filters()
     return u
 
 
@@ -139,7 +145,58 @@ def charge(u: Dict[str, Any], feature: str) -> bool:
     return False
 
 
-# -------------------- FILTERS --------------------
+# -------------------- HELPERS (LANG / TEXT) --------------------
+
+def _tr(lang: str, uk: str, hr: str, en: str) -> str:
+    if lang == "hr":
+        return hr
+    if lang == "en":
+        return en
+    return uk
+
+def _norm_words(items: List[str]) -> List[str]:
+    out = []
+    for x in items or []:
+        s = str(x).strip().lower()
+        if not s:
+            continue
+        out.append(s)
+    return out
+
+def _contains_any(text: str, words: List[str]) -> bool:
+    t = (text or "").lower()
+    for w in words:
+        if w and w in t:
+            return True
+    return False
+
+def _qty(lang: str, a_uk: str, a_hr: str, a_en: str) -> str:
+    return _tr(lang, a_uk, a_hr, a_en)
+
+def _fmt_item(name: str, qty: str) -> str:
+    name = (name or "").strip()
+    qty = (qty or "").strip()
+    if not name:
+        return ""
+    return f"{name} — {qty}" if qty else name
+
+def _avoid_exclude(items: List[str], excl: List[str]) -> List[str]:
+    out = []
+    for it in items:
+        if not it:
+            continue
+        if _contains_any(it, excl):
+            continue
+        out.append(it)
+    return out
+
+def _pick_distinct(rng: random.Random, options: List[str], k: int) -> List[str]:
+    opts = [o for o in options if o]
+    rng.shuffle(opts)
+    return opts[:k]
+
+
+# -------------------- DISH FILTERS --------------------
 
 def dish_matches_filters(d: Dict[str, Any], f: Dict[str, Any]) -> bool:
     tags = set(d.get("tags", []))
@@ -149,12 +206,10 @@ def dish_matches_filters(d: Dict[str, Any], f: Dict[str, Any]) -> bool:
     for k in ("gluten_free", "lactose_free", "high_protein", "low_calorie"):
         if f.get(k) and k not in tags:
             return False
-
     max_time = int(f.get("max_time", 0) or 0)
     if max_time and int(d.get("time_total_min", 10_000)) > max_time:
         return False
-
-    excl = [x.strip().lower() for x in (f.get("exclude") or []) if x.strip()]
+    excl = [x.strip().lower() for x in (f.get("exclude") or []) if str(x).strip()]
     if excl:
         blob = " ".join([str(x).lower() for x in d.get("ingredients", [])])
         if any(w in blob for w in excl):
@@ -162,63 +217,63 @@ def dish_matches_filters(d: Dict[str, Any], f: Dict[str, Any]) -> bool:
     return True
 
 
-# -------------------- FAST "MINI AI" GENERATOR (PERSONALIZED) --------------------
+# -------------------- FAST "MINI AI" GENERATOR --------------------
 
-def _tr(lang: str, uk: str, hr: str, en: str) -> str:
-    return {"uk": uk, "hr": hr, "en": en}.get(lang, uk)
+def _build_title(lang: str, diet: str, f: Dict[str, Any], rng: random.Random) -> str:
+    quick = f.get("max_time", 0) and int(f.get("max_time", 0)) <= 15
+    if quick:
+        base = _tr(lang, "Швидка страва", "Brzo jelo", "Quick dish")
+    else:
+        base = _tr(lang, "Страва дня", "Jelo dana", "Dish of the day")
 
-def _norm_words(xs: List[str]) -> List[str]:
-    return [re.sub(r"\s+", " ", (x or "").strip().lower()) for x in xs if (x or "").strip()]
+    variants = [
+        _tr(lang, "боул", "bowl", "bowl"),
+        _tr(lang, "салат", "salata", "salad"),
+        _tr(lang, "сковорідка", "tava", "pan"),
+        _tr(lang, "паста", "tjestenina", "pasta"),
+        _tr(lang, "рис", "riža", "rice"),
+    ]
 
-def _contains_any(text: str, banned: List[str]) -> bool:
-    t = (text or "").lower()
-    return any(b in t for b in banned)
+    # gluten free: avoid pasta/bread vibes
+    if f.get("gluten_free"):
+        variants = [v for v in variants if v not in [_tr(lang, "паста","tjestenina","pasta")]]
 
-def _rng(uid: int, salt: str) -> random.Random:
-    base = f"{uid}|{today()}|{salt}|{now().strftime('%H%M%S')}|{random.random()}"
-    seed = int(hashlib.sha256(base.encode("utf-8")).hexdigest()[:16], 16)
-    return random.Random(seed)
+    v = rng.choice(variants)
+    return f"{base}: {v}".strip()
 
-def _make_tags(diet: str, f: Dict[str, Any], base_tags: List[str]) -> List[str]:
-    tags = set(base_tags)
-    if diet in ("vegetarian", "vegan", "pescatarian"):
-        tags.add(diet)
-    for k in ("gluten_free", "lactose_free", "high_protein", "low_calorie"):
-        if f.get(k):
-            tags.add(k)
-    return [t for t in tags if t in ALLOWED_TAGS]
-
-def _choose_time(f: Dict[str, Any], rng: random.Random) -> int:
-    mx = int(f.get("max_time", 0) or 0)
-    if mx <= 0:
-        return rng.choice([10, 12, 15, 18, 20, 25, 30, 35, 40, 45])
-    # під max_time
-    candidates = [t for t in [8,10,12,15,18,20,25,30,35,40,45,60] if t <= mx]
-    return rng.choice(candidates) if candidates else mx
 
 def _build_ingredients(lang: str, diet: str, f: Dict[str, Any], rng: random.Random) -> List[str]:
-    # Категорії (просте, швидке, “різне”)
+    """
+    Returns ingredients with quantities. Still respects gluten/lactose/exclude.
+    """
+    excl = _norm_words(f.get("exclude") or [])
+
+    def pick_from(options: List[str]) -> str:
+        opts = [o for o in options if (o and not _contains_any(o, excl))]
+        return rng.choice(opts) if opts else ""
+
+    # --- Pools (names only, qty decided later) ---
     proteins = {
         "vegan": [
             _tr(lang,"тофу","tofu","tofu"),
-            _tr(lang,"квасоля","grah","beans"),
-            _tr(lang,"нут","slanutak","chickpeas"),
+            _tr(lang,"квасоля (консерва)","grah (konzerva)","beans (canned)"),
+            _tr(lang,"нут (консерва)","slanutak (konzerva)","chickpeas (canned)"),
             _tr(lang,"сочевиця","leća","lentils"),
         ],
         "vegetarian": [
             _tr(lang,"яйця","jaja","eggs"),
             _tr(lang,"сир","sir","cheese"),
-            _tr(lang,"йогурт","jogurt","yogurt"),
+            _tr(lang,"грецький йогурт","grčki jogurt","Greek yogurt"),
         ],
         "pescatarian": [
-            _tr(lang,"тунець","tuna","tuna"),
+            _tr(lang,"тунець (консерва)","tuna (konzerva)","tuna (canned)"),
             _tr(lang,"лосось","losos","salmon"),
-            _tr(lang,"сардини","srdele","sardines"),
+            _tr(lang,"сардини (консерва)","srdele (konzerva)","sardines (canned)"),
         ],
         "any": [
-            _tr(lang,"курка","piletina","chicken"),
+            _tr(lang,"куряче філе","pileći file","chicken breast"),
             _tr(lang,"індичка","puretina","turkey"),
-            _tr(lang,"тунець","tuna","tuna"),
+            _tr(lang,"тунець (консерва)","tuna (konzerva)","tuna (canned)"),
             _tr(lang,"яйця","jaja","eggs"),
             _tr(lang,"тофу","tofu","tofu"),
         ],
@@ -245,162 +300,274 @@ def _build_ingredients(lang: str, diet: str, f: Dict[str, Any], rng: random.Rand
         _tr(lang,"цибуля","luk","onion"),
         _tr(lang,"броколі","brokula","broccoli"),
         _tr(lang,"гриби","gljive","mushrooms"),
+        _tr(lang,"кукурудза (консерва)","kukuruz (konzerva)","corn (canned)"),
     ]
 
     sauces = [
         _tr(lang,"оливкова олія","maslinovo ulje","olive oil"),
         _tr(lang,"соєвий соус","soja umak","soy sauce"),
         _tr(lang,"томатний соус","umak od rajčice","tomato sauce"),
-        _tr(lang,"йогуртовий соус","jogurt umak","yogurt sauce"),
         _tr(lang,"лимонний сік","limunov sok","lemon juice"),
     ]
+    dairy_sauces = [
+        _tr(lang,"йогуртовий соус","jogurt umak","yogurt sauce"),
+        _tr(lang,"сметана/йогурт","vrhnje/jogurt","sour cream/yogurt"),
+    ]
 
-    # exclude
-    excl = _norm_words(f.get("exclude") or [])
-    # diet resolve
     if diet not in ("vegetarian","vegan","pescatarian"):
         diet = "any"
 
-    # lactose_free: avoid dairy items by choosing sauce that isn't yogurt/cheese, and not picking dairy protein
+    # lactose_free: remove dairy proteins + dairy sauces
     p_list = proteins[diet][:]
     if f.get("lactose_free"):
-        # remove dairy
-        p_list = [p for p in p_list if not _contains_any(p, ["сир","йогурт","cheese","yogurt","sir","jogurt"])]
-        sauces2 = [s for s in sauces if not _contains_any(s, ["йогурт","jogurt","yogurt"])]
+        p_list = [p for p in p_list if not _contains_any(p, ["сир","йогурт","cheese","yogurt","sir","jogurt","vrhnje"])]
+        sauce_pool = sauces[:]
     else:
-        sauces2 = sauces[:]
+        sauce_pool = sauces + dairy_sauces
 
-    # gluten_free: choose gf carbs
-    carb_list = carbs_gf[:] if f.get("gluten_free") else carbs[:]
-
-    # pick items with exclude filtering
-    def pick_from(options: List[str]) -> str:
-        opts = [o for o in options if (o and not _contains_any(o, excl))]
-        if not opts:
-            return ""
-        return rng.choice(opts)
+    # gluten_free: carb pool
+    carb_pool = carbs_gf[:] if f.get("gluten_free") else carbs[:]
 
     prot = pick_from(p_list) or pick_from(proteins["any"])
-    carb = pick_from(carb_list)
-    v1 = pick_from(veggies)
-    v2 = pick_from(veggies)
-    sauce = pick_from(sauces2)
+    carb = pick_from(carb_pool)
+    veg_pick = _pick_distinct(rng, _avoid_exclude(veggies, excl), 3)
+    sauce = pick_from(sauce_pool)
 
-    base = [prot, carb, v1, v2, sauce,
-            _tr(lang,"сіль","sol","salt"),
-            _tr(lang,"перець","papar","pepper")]
+    # --- quantities based on macros flags ---
+    protein_qty = _qty(lang, "120–180 г", "120–180 g", "120–180 g")
+    if f.get("high_protein"):
+        protein_qty = _qty(lang, "180–250 г", "180–250 g", "180–250 g")
 
-    # remove empties and duplicates
-    out = []
-    seen = set()
-    for x in base:
-        if not x:
-            continue
-        key = x.lower()
+    carb_qty = _qty(lang, "60–80 г (сух.)", "60–80 g (suho)", "60–80 g (dry)")
+    if f.get("low_calorie"):
+        carb_qty = _qty(lang, "40–60 г (сух.)", "40–60 g (suho)", "40–60 g (dry)")
+
+    veg_qty = _qty(lang, "1 шт", "1 kom", "1 pc")
+    oil_qty = _qty(lang, "1 ст. л.", "1 žlica", "1 tbsp")
+    sauce_qty = _qty(lang, "1–2 ст. л.", "1–2 žlice", "1–2 tbsp")
+
+    # specific tweaks
+    if _contains_any(prot, ["яйц", "egg", "jaja"]):
+        protein_qty = _qty(lang, "2–3 шт", "2–3 kom", "2–3 pcs")
+    if _contains_any(prot, ["тунець", "tuna", "сардин", "srdele", "sardines"]):
+        protein_qty = _qty(lang, "1 банка", "1 konzerva", "1 can")
+    if _contains_any(prot, ["квасол", "grah", "beans", "нут", "slanutak", "chickpeas"]):
+        protein_qty = _qty(lang, "1/2–1 банка", "1/2–1 konzerva", "1/2–1 can")
+    if _contains_any(carb, ["картоп", "krumpir", "potato"]):
+        carb_qty = _qty(lang, "2–3 шт", "2–3 kom", "2–3 pcs")
+    if _contains_any(carb, ["хліб", "kruh", "bread"]):
+        carb_qty = _qty(lang, "2 скибки", "2 kriške", "2 slices")
+    if _contains_any(carb, ["тортиль", "tortil"]):
+        carb_qty = _qty(lang, "1–2 шт", "1–2 kom", "1–2 pcs")
+
+    items = []
+    items.append(_fmt_item(prot, protein_qty))
+    if carb:
+        items.append(_fmt_item(carb, carb_qty))
+
+    for v in veg_pick:
+        vq = veg_qty
+        if _contains_any(v, ["шпинат","špinat","spinach"]):
+            vq = _qty(lang, "1 жменя", "1 šaka", "1 handful")
+        if _contains_any(v, ["брокол","brok","broccoli"]):
+            vq = _qty(lang, "150–200 г", "150–200 g", "150–200 g")
+        if _contains_any(v, ["гриб","gljiv","mushroom"]):
+            vq = _qty(lang, "150 г", "150 g", "150 g")
+        items.append(_fmt_item(v, vq))
+
+    if sauce:
+        if _contains_any(sauce, ["оливкова", "maslinovo", "olive oil"]):
+            items.append(_fmt_item(sauce, oil_qty))
+        else:
+            items.append(_fmt_item(sauce, sauce_qty))
+
+    items.append(_fmt_item(_tr(lang,"сіль","sol","salt"), _qty(lang,"за смаком","po ukusu","to taste")))
+    items.append(_fmt_item(_tr(lang,"перець","papar","pepper"), _qty(lang,"за смаком","po ukusu","to taste")))
+
+    items = _avoid_exclude(items, excl)
+
+    out, seen = [], set()
+    for it in items:
+        key = it.lower()
         if key in seen:
             continue
         seen.add(key)
-        out.append(x)
-
-    # final exclude check
-    blob = " ".join([x.lower() for x in out])
-    if any(e in blob for e in excl):
-        # якщо раптом щось прослизнуло — прибрати
-        out = [x for x in out if not _contains_any(x, excl)]
+        out.append(it)
 
     return out
 
-def _build_title(lang: str, diet: str, f: Dict[str, Any], ingredients: List[str], rng: random.Random) -> str:
-    # templates based on chosen ingredients
-    prot = ingredients[0] if ingredients else _tr(lang,"страва","jelo","dish")
-    carb = ""
-    for x in ingredients[1:]:
-        if x.lower() in ["рис","riža","rice","паста","tjestenina","pasta","гречка","heljda","buckwheat","картопля","krumpir","potato","тортилья","tortilja","tortilla","хліб","kruh","bread","кіноа","kvinoja","quinoa"]:
-            carb = x
-            break
-
-    ideas = [
-        _tr(lang, f"Швидка страва: {prot}", f"Brzo jelo: {prot}", f"Quick dish: {prot}"),
-        _tr(lang, f"{prot} боул", f"{prot} bowl", f"{prot} bowl"),
-        _tr(lang, f"Салат з {prot}", f"Salata s {prot}", f"Salad with {prot}"),
-        _tr(lang, f"Врап з {prot}", f"Wrap s {prot}", f"Wrap with {prot}"),
-        _tr(lang, f"{prot} + овочі", f"{prot} + povrće", f"{prot} + veggies"),
-    ]
-    if carb:
-        ideas += [
-            _tr(lang, f"{prot} з {carb}", f"{prot} s {carb}", f"{prot} with {carb}"),
-            _tr(lang, f"{carb} з {prot}", f"{carb} s {prot}", f"{carb} with {prot}"),
-        ]
-
-    # extra variations
-    if f.get("high_protein"):
-        ideas.append(_tr(lang, f"High-protein: {prot}", f"High-protein: {prot}", f"High-protein: {prot}"))
-    if f.get("low_calorie"):
-        ideas.append(_tr(lang, f"Легка страва: {prot}", f"Lagano jelo: {prot}", f"Light dish: {prot}"))
-
-    return rng.choice(ideas)[:80]
 
 def _build_steps(lang: str, f: Dict[str, Any], rng: random.Random) -> List[str]:
-    # simple, universal steps, small randomness
-    s = [
-        _tr(lang, "Підготуй інгредієнти (поріж овочі).", "Pripremi sastojke (nareži povrće).", "Prep ingredients (chop veggies)."),
-        _tr(lang, "Приготуй основний продукт (або відкрий консерву).", "Pripremi glavni sastojak (ili otvori konzervu).", "Cook the main ingredient (or open can)."),
-        _tr(lang, "Змішай усе та додай соус і спеції.", "Sve pomiješaj i dodaj umak i začine.", "Mix everything, add sauce & spices."),
-        _tr(lang, "Подавай одразу.", "Posluži odmah.", "Serve immediately."),
-    ]
-    # swap one step sometimes
-    if rng.random() < 0.35:
-        s[1] = _tr(lang, "Підігрій на пательні 5–7 хв.", "Zagrij na tavi 5–7 min.", "Heat in a pan for 5–7 min.")
-    if rng.random() < 0.25:
-        s.insert(2, _tr(lang, "Спробуй на смак і підкоригуй сіль/перець.", "Probaj i dotjeraj sol/papar.", "Taste and adjust salt/pepper."))
-    return s[:6]
+    """
+    More detailed steps with micro-timing. Still universal and fast.
+    """
+    steps = []
 
-def generate_dish_for_user(uid: int, lang: str, f: Dict[str, Any], recent_titles: List[str]) -> Optional[Dict[str, Any]]:
-    rng = _rng(uid, f"GEN|{lang}")
-    diet = (f.get("diet") or "any")
-    if diet not in ("any","vegetarian","vegan","pescatarian"):
-        diet = "any"
+    steps.append(_tr(
+        lang,
+        "1) Підготовка (2–4 хв): помий/наріж овочі. Якщо є консерва — злий рідину та промий.",
+        "1) Priprema (2–4 min): operi/nareži povrće. Ako je konzerva — ocijedi i isperi.",
+        "1) Prep (2–4 min): wash/chop veggies. If canned — drain and rinse."
+    ))
 
-    # зробимо кілька спроб, щоб:
-    # 1) не повторювалось
-    # 2) пройшло фільтри
-    # 3) не містило exclude
-    max_tries = 40
-    recent_set = set((x or "").strip().lower() for x in (recent_titles or [])[-12:])
+    if f.get("gluten_free"):
+        steps.append(_tr(
+            lang,
+            "2) Перевір: використовуй лише безглютенову основу (рис/гречка/картопля/кіноа).",
+            "2) Provjeri: koristi bezglutensku bazu (riža/heljda/krumpir/kvinoja).",
+            "2) Check: use gluten-free base (rice/buckwheat/potato/quinoa)."
+        ))
 
-    for _ in range(max_tries):
-        time_total = _choose_time(f, rng)
+    if f.get("lactose_free"):
+        steps.append(_tr(
+            lang,
+            "3) Без лактози: уникай сиру/йогурту, заправляй олією, лимоном або соєвим соусом.",
+            "3) Bez laktoze: izbjegni sir/jogurt; začini uljem, limunom ili soja umakom.",
+            "3) Lactose-free: avoid dairy; dress with oil, lemon or soy sauce."
+        ))
+
+    cook_variant = rng.choice(["pan", "mix", "bowl"])
+    if cook_variant == "pan":
+        steps.append(_tr(
+            lang,
+            "4) Сковорідка (6–10 хв): розігрій на середньому вогні, додай 1 ст. л. олії. Обсмаж основний продукт 4–7 хв. Овочі додай наприкінці на 1–2 хв.",
+            "4) Tava (6–10 min): zagrij na srednje, dodaj 1 žlicu ulja. Prži glavni sastojak 4–7 min. Povrće dodaj zadnje 1–2 min.",
+            "4) Pan (6–10 min): heat on medium, add 1 tbsp oil. Cook main ingredient 4–7 min. Add veggies for the last 1–2 min."
+        ))
+    elif cook_variant == "mix":
+        steps.append(_tr(
+            lang,
+            "4) Швидке змішування (2–3 хв): у мисці змішай основу + білок + овочі. Додай соус, перемішай.",
+            "4) Brzo miješanje (2–3 min): u zdjeli spoji bazu + protein + povrće. Dodaj umak i promiješaj.",
+            "4) Quick mix (2–3 min): in a bowl combine base + protein + veggies. Add sauce and mix."
+        ))
+    else:
+        steps.append(_tr(
+            lang,
+            "4) Боул (3–5 хв): виклади основу, зверху білок і овочі. Заправ соусом.",
+            "4) Bowl (3–5 min): stavi bazu, zatim protein i povrće. Prelij umakom.",
+            "4) Bowl (3–5 min): add base, top with protein and veggies. Dress with sauce."
+        ))
+
+    steps.append(_tr(
+        lang,
+        "5) Смак (1 хв): посоли/поперчи. Якщо хочеш — додай лимонний сік або ще трішки соусу.",
+        "5) Okus (1 min): posoli/papri. Po želji dodaj limun ili još malo umaka.",
+        "5) Taste (1 min): add salt/pepper. Optionally add lemon or a bit more sauce."
+    ))
+
+    if f.get("high_protein"):
+        steps.append(_tr(
+            lang,
+            "6) High-protein порада: збільш порцію білка і зменш пасту/хліб.",
+            "6) High-protein savjet: povećaj protein, smanji tjesteninu/kruh.",
+            "6) High-protein tip: increase protein, reduce pasta/bread."
+        ))
+
+    if f.get("low_calorie"):
+        steps.append(_tr(
+            lang,
+            "7) Low-calorie порада: більше овочів, менше олії (1 ч. л. замість 1 ст. л.).",
+            "7) Low-calorie savjet: više povrća, manje ulja (1 žličica umjesto 1 žlice).",
+            "7) Low-calorie tip: more veggies, less oil (1 tsp instead of 1 tbsp)."
+        ))
+
+    steps.append(_tr(
+        lang,
+        "Фініш: подавай одразу. Смачного 🙂",
+        "Finish: posluži odmah. Dobar tek 🙂",
+        "Finish: serve right away. Enjoy 🙂"
+    ))
+
+    return steps[:10]
+
+
+def _estimate_time(f: Dict[str, Any], rng: random.Random) -> int:
+    max_time = int(f.get("max_time", 0) or 0)
+    if max_time:
+        return max(8, min(max_time, rng.randint(8, max_time)))
+    # otherwise pick reasonable 10-25
+    return rng.randint(10, 25)
+
+def _tags_for_filters(f: Dict[str, Any]) -> List[str]:
+    tags = ["quick"]
+    diet = f.get("diet", "any")
+    if diet in ("vegetarian","vegan","pescatarian"):
+        tags.append(diet)
+    for k in ("gluten_free","lactose_free","high_protein","low_calorie"):
+        if f.get(k):
+            tags.append(k)
+    # de-dup + allowlist
+    out = []
+    for t in tags:
+        if t in ALLOWED_TAGS and t not in out:
+            out.append(t)
+    return out
+
+def _sig_for_dish(title: str, ingredients: List[str], tags: List[str]) -> str:
+    base = (title or "") + "|" + "|".join(ingredients[:6]) + "|" + "|".join(tags)
+    return hashlib.sha256(base.encode("utf-8")).hexdigest()[:18]
+
+
+def generate_dish_for_user(u: Dict[str, Any], refresh_seed: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Deterministic per-day/per-user, but when refresh_seed changes (e.g. "refresh click"),
+    you get a different dish.
+    """
+    lang = u.get("lang", "uk")
+    f = u.get("filters") or default_filters()
+    diet = f.get("diet", "any")
+
+    # Seed: user + date + filters + optional refresh_seed
+    seed_base = f"{u.get('created_at','')}-{today()}-{lang}-{json.dumps(f, sort_keys=True)}"
+    if refresh_seed:
+        seed_base += f"-{refresh_seed}"
+    rng = random.Random(hashlib.sha256(seed_base.encode("utf-8")).hexdigest())
+
+    # Generate dish candidate(s) until it differs from last_dish_sig (try a few times)
+    last_sig = u.get("last_dish_sig", "")
+    for _ in range(6):
+        title = _build_title(lang, diet, f, rng)
         ingredients = _build_ingredients(lang, diet, f, rng)
-        title = _build_title(lang, diet, f, ingredients, rng)
+        steps = _build_steps(lang, f, rng)
+        time_total_min = _estimate_time(f, rng)
+        tags = _tags_for_filters(f)
+
         why = _tr(
             lang,
-            "Згенеровано під твої фільтри — швидко й просто.",
-            "Generirano prema tvojim filterima — brzo i jednostavno.",
-            "Generated for your filters — fast and simple."
+            "Згенеровано під твої фільтри. Мінімум часу, максимум користі.",
+            "Generirano prema tvojim filterima. Malo vremena, puno koristi.",
+            "Generated for your filters. Minimal time, maximum value."
         )
-        tags = _make_tags(diet, f, base_tags=["quick"])
 
         dish = {
             "title": title,
             "why": why,
             "ingredients": ingredients,
-            "steps": _build_steps(lang, f, rng),
-            "time_total_min": int(time_total),
+            "steps": steps,
+            "time_total_min": int(time_total_min),
             "tags": tags,
         }
 
-        # filter check
+        # strict filter check (exclude words etc.)
         if not dish_matches_filters(dish, f):
             continue
 
-        # avoid repeats
-        if dish["title"].strip().lower() in recent_set:
-            continue
+        sig = _sig_for_dish(title, ingredients, tags)
+        if sig != last_sig:
+            u["last_dish_sig"] = sig
+            return dish
 
-        return dish
-
-    # якщо дуже строгі фільтри й нічого не вийшло
-    return None
+    # fallback (still return something)
+    u["last_dish_sig"] = ""
+    return {
+        "title": _tr(lang, "Страва дня: демо", "Jelo dana: demo", "Dish of the day: demo"),
+        "why": _tr(lang, "Не вдалося підібрати під фільтри, спробуй змінити фільтри.", "Nije moguće po filtrima, promijeni filtre.", "Couldn't match filters, try changing filters."),
+        "ingredients": [_tr(lang,"вода — 200 мл","voda — 200 ml","water — 200 ml")],
+        "steps": [_tr(lang,"Спробуй інші фільтри.","Probaj druge filtre.","Try other filters.")],
+        "time_total_min": 5,
+        "tags": ["quick"],
+    }
 
 
 # -------------------- TELEGRAM INITDATA VERIFY --------------------
@@ -429,9 +596,7 @@ def validate_init_data(init_data: str, bot_token: str, max_age_sec: int = 86400)
 
 def uid_from_init(init_data: str) -> int:
     if not init_data:
-        return 0  # demo
-    if not BOT_TOKEN:
-        raise HTTPException(500, "BOT_TOKEN is missing on server")
+        raise HTTPException(401, "Missing initData")
     return validate_init_data(init_data, BOT_TOKEN)
 
 
@@ -439,20 +604,29 @@ def uid_from_init(init_data: str) -> int:
 
 @app.get("/api/status")
 def api_status(x_telegram_init_data: str = Header(default="")):
-    user_id = uid_from_init(x_telegram_init_data)
-    with LOCK:
-        db = load_db()
-        u = get_user(db, user_id)
-        apply_bonus(u)
-        save_db(db)
+    # DEMO mode (browser)
+    if not x_telegram_init_data:
+        return {
+            "lang": "uk",
+            "trial": True,
+            "trial_days_left": TRIAL_DAYS,
+            "tokens": 15,
+            "filters": default_filters(),
+            "demo": True
+        }
 
+    user_id = uid_from_init(x_telegram_init_data)
+    db = load_db()
+    u = get_user(db, user_id)
+    apply_bonus(u)
+    save_db(db)
     return {
         "lang": u["lang"],
         "trial": is_trial(u),
         "trial_days_left": trial_days_left(u),
-        "tokens": int(u.get("tokens", 0)),
-        "filters": u.get("filters", default_filters()),
-        "demo": (user_id == 0),
+        "tokens": u["tokens"],
+        "filters": u["filters"],
+        "demo": False
     }
 
 
@@ -462,83 +636,75 @@ def api_lang(payload: Dict[str, Any], x_telegram_init_data: str = Header(default
     lang = payload.get("lang", "uk")
     if lang not in ("uk", "hr", "en"):
         lang = "uk"
-
-    with LOCK:
-        db = load_db()
-        u = get_user(db, user_id)
-        u["lang"] = lang
-        save_db(db)
-
+    db = load_db()
+    u = get_user(db, user_id)
+    u["lang"] = lang
+    save_db(db)
     return {"ok": True}
 
 
 @app.post("/api/filters")
 def api_filters(payload: Dict[str, Any], x_telegram_init_data: str = Header(default="")):
     user_id = uid_from_init(x_telegram_init_data)
+    db = load_db()
+    u = get_user(db, user_id)
 
-    with LOCK:
-        db = load_db()
-        u = get_user(db, user_id)
-        f = u.get("filters", default_filters())
+    f = u.get("filters", default_filters())
+    for k in f.keys():
+        if k in payload:
+            f[k] = payload[k]
+    # normalize exclude
+    if isinstance(f.get("exclude"), str):
+        f["exclude"] = [x.strip() for x in f["exclude"].split(",") if x.strip()]
+    u["filters"] = f
 
-        for k in f.keys():
-            if k in payload:
-                f[k] = payload[k]
-        u["filters"] = f
-
-        save_db(db)
-
+    # reset last dish so next daily can differ
+    u["last_dish_sig"] = ""
+    save_db(db)
     return {"ok": True}
 
 
 @app.post("/api/daily")
-def api_daily(
-    x_telegram_init_data: str = Header(default=""),
-    force: int = Query(default=0)  # 1 = завжди нова страва
-):
+def api_daily(payload: Dict[str, Any] = None, x_telegram_init_data: str = Header(default="")):
+    # DEMO mode (browser)
+    if not x_telegram_init_data:
+        # allow refresh seed for demo too
+        refresh_seed = None
+        if isinstance(payload, dict):
+            refresh_seed = payload.get("refresh_seed")
+        dish = {
+            "title": "Demo: Dish generator",
+            "why": "DEMO режим (відкрито не в Telegram). Відкрий Mini App через бота для персоналізації.",
+            "ingredients": ["2 eggs — 2 pcs", "salt — to taste", "olive oil — 1 tbsp"],
+            "steps": ["Prep 2–4 min", "Cook 6–10 min", "Serve"],
+            "time_total_min": 12,
+            "tags": ["quick", "high_protein"]
+        }
+        return {"ok": True, "dish": dish, "demo": True}
+
     user_id = uid_from_init(x_telegram_init_data)
+
+    # refresh seed from payload (when user presses refresh)
+    refresh_seed = None
+    if isinstance(payload, dict):
+        refresh_seed = payload.get("refresh_seed")
 
     with LOCK:
         db = load_db()
         u = get_user(db, user_id)
         apply_bonus(u)
 
-        # charge once per day for daily (not demo)
-        if user_id != 0 and (not is_trial(u)):
+        if not is_trial(u):
             if u.get("daily_paid") != today():
                 if not charge(u, "daily"):
                     save_db(db)
                     raise HTTPException(402, "NO_TOKENS")
                 u["daily_paid"] = today()
 
-        lang = u.get("lang", "uk")
-        f = u.get("filters", default_filters())
-
-        # якщо НЕ force — робимо "страву дня" стабільну (одна на день)
-        # якщо force=1 — генеруємо кожен раз нову
-        dkey = today()
-        db.setdefault("daily", {}).setdefault(dkey, {})
-        userkey = str(user_id)
-        db["daily"][dkey].setdefault(userkey, {})
-        db["daily"][dkey][userkey].setdefault(lang, {})
-
-        if not force and db["daily"][dkey][userkey][lang].get("dish"):
-            dish = db["daily"][dkey][userkey][lang]["dish"]
-        else:
-            recent = u.get("recent_titles", {}).get(lang, [])
-            dish = generate_dish_for_user(user_id, lang, f, recent)
-
-            # save dish for today (only if not force OR if you want last generated)
-            db["daily"][dkey][userkey][lang]["dish"] = dish
-
-            # remember recent titles to avoid repeats
-            if dish and dish.get("title"):
-                u["recent_titles"][lang].append(dish["title"])
-                u["recent_titles"][lang] = u["recent_titles"][lang][-25:]
-
+        dish = generate_dish_for_user(u, refresh_seed=refresh_seed)
         save_db(db)
 
-    return {"ok": True, "dish": dish, "demo": (user_id == 0)}
+    return {"ok": True, "dish": dish, "demo": False}
 
 
 @app.post("/api/action")
@@ -548,46 +714,20 @@ def api_action(payload: Dict[str, Any], x_telegram_init_data: str = Header(defau
     if action not in ("ingredients", "steps", "time"):
         raise HTTPException(400, "bad action")
 
-    with LOCK:
-        db = load_db()
-        u = get_user(db, user_id)
-        apply_bonus(u)
+    db = load_db()
+    u = get_user(db, user_id)
+    apply_bonus(u)
 
-        if user_id != 0:
-            if not charge(u, action):
-                save_db(db)
-                raise HTTPException(402, "NO_TOKENS")
-
-        lang = u.get("lang", "uk")
-        dkey = today()
-        userkey = str(user_id)
-
-        # беремо останню згенеровану "daily" (без force)
-        dish = None
-        try:
-            dish = db.get("daily", {}).get(dkey, {}).get(userkey, {}).get(lang, {}).get("dish")
-        except Exception:
-            dish = None
-
-        # якщо ще нема — згенерувати раз
-        if not dish:
-            f = u.get("filters", default_filters())
-            recent = u.get("recent_titles", {}).get(lang, [])
-            dish = generate_dish_for_user(user_id, lang, f, recent)
-            db.setdefault("daily", {}).setdefault(dkey, {})
-            db["daily"][dkey].setdefault(userkey, {})
-            db["daily"][dkey][userkey].setdefault(lang, {})
-            db["daily"][dkey][userkey][lang]["dish"] = dish
-
-            if dish and dish.get("title"):
-                u["recent_titles"][lang].append(dish["title"])
-                u["recent_titles"][lang] = u["recent_titles"][lang][-25:]
-
+    if not charge(u, action):
         save_db(db)
+        raise HTTPException(402, "NO_TOKENS")
+
+    # return current generated dish (do not change on action)
+    dish = generate_dish_for_user(u, refresh_seed=None)
+    save_db(db)
 
     if not dish:
         return {"ok": True, "data": None}
-
     if action == "ingredients":
         return {"ok": True, "data": dish.get("ingredients", [])}
     if action == "steps":
