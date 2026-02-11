@@ -534,11 +534,8 @@
 
 <script>
   const tg = window.Telegram?.WebApp;
-  tg?.ready();
-  tg?.expand();
-
-  // ---- ALWAYS HR ----
-  const LANG = "hr";
+  tg?.ready?.();
+  tg?.expand?.();
 
   function isDarkByScheme(){
     return (tg?.colorScheme === "dark") || (window.matchMedia("(prefers-color-scheme: dark)").matches);
@@ -551,7 +548,6 @@
     const text = p.text_color || (dark ? "#e9eef5" : "#0f172a");
     const muted = p.hint_color || (dark ? "rgba(233,238,245,.70)" : "rgba(15,23,42,.62)");
     const accent = p.button_color || (dark ? "#4da3ff" : "#2b7cff");
-
     const stroke = dark ? "rgba(255,255,255,.10)" : "rgba(15,23,42,.10)";
     const card = dark ? "rgba(255,255,255,.06)" : "rgba(15,23,42,.04)";
     const card2 = dark ? "rgba(255,255,255,.04)" : "rgba(15,23,42,.03)";
@@ -566,45 +562,239 @@
     document.documentElement.style.setProperty("--card2", card2);
     document.documentElement.style.setProperty("--accent", accent);
     document.documentElement.style.setProperty("--accent2", dark ? "#7c5cff" : "#6a5cff");
-
-    try { tg?.MainButton?.setParams({ color: accent }); } catch(e){}
+    try { tg?.MainButton?.setParams?.({ color: accent }); } catch(e){}
   }
   applyTheme();
   try { tg?.onEvent?.("themeChanged", applyTheme); } catch(e){}
 
-  const T = {
-    uiTitle:"Najjednostavniji recepti",
-    uiSub:"Cook Today • jelo dana • sastojci • recept • filteri",
-    outIng:"🧾 Sastojci",
-    outSteps:"👨‍🍳 Koraci",
-    outTime:"⏱ Vrijeme",
-    noDish:"Nema jela za ove filtre",
-    noTokens:"Nema tokena 😕",
-    howTitle:"Kako radi",
-    howMsg:"🎁 Trial 7 dana: sve je besplatno.\nNakon trial: radnje troše tokene.\nSvaki dan: bonus tokeni (uz limit).",
-    buyTitle:"Kupnja",
-    buyWait:"Otvaram račun (Stars)…",
-    buyErr:"Ne mogu otvoriti kupnju: ",
-    bonusTitle:"Bonus",
-    bonusPopup:"Bonus provjeren ✅\nAko danas još nije bio — već je dodan.",
-    supportTitle:"Podrška",
-    supportMsg:"Javi se autoru bota ili ćemo dodati gumb koji otvara chat.",
-    rulesTitle:"Pravila tokena",
-    rulesMsg:"Trial 7 dana: sve besplatno.\nNakon trial: radnje koštaju tokene.\nSvaki dan: bonus tokeni (uz limit).",
-    pricingTitle:"Cijene",
-    pricingMsg:"Primjer:\n• Jelo dana: 1\n• Sastojci: 1\n• Koraci: 2\n• Vrijeme: 1\n(možemo promijeniti kako želiš)"
+  const I18N = {
+    uk: {
+      uiTitle:"Najjednostavniji recepti",
+      uiSub:"Cook Today • страва дня • інгредієнти • рецепт • фільтри",
+      balanceK:"Загальний баланс",
+      homeH:"Сьогоднішня страва",
+      daily:"Страва дня",
+      dailySub:"Оновлюється щодня",
+      recipe:"Рецепт",
+      recipeSub:"Кроки приготування",
+      wallet:"Токени",
+      walletSub:"Баланс і бонуси",
+      ing:"Інгредієнти",
+      steps:"Кроки",
+      time:"Час",
+      ingSub:"Список продуктів",
+      stepsSub:"Покроково",
+      timeSub:"Приблизно",
+      filtersT:"Налаштування / Фільтри",
+      filtersD:"Дієта, час, виключення інгредієнтів",
+      howT:"Як це працює",
+      howD:"Trial 7 днів, потім токени + бонуси",
+      tbHome:"Головна",
+      tbRecipe:"Рецепт",
+      tbFilters:"Фільтри",
+      tbWallet:"Гаманець",
+      filH:"Налаштування",
+      lLang:"🌏 Мова",
+      lDiet:"Дієта",
+      lMax:"Макс час",
+      lExcl:"Виключити (через кому)",
+      save:"Зберегти",
+      refresh:"Оновити",
+      wK:"Баланс",
+      wH:"Гаманець",
+      buy:"Купити",
+      buySub:"Токени / Stars",
+      bonus:"Бонус",
+      bonusSub:"Щодня обмежено",
+      support:"Підтримка",
+      supportSub:"Питання / баги",
+      rulesT:"Правила токенів",
+      pricesT:"Прайс",
+      outIng:"🧾 Інгредієнти",
+      outSteps:"👨‍🍳 Кроки",
+      outTime:"⏱ Час",
+      noDish:"Немає страви під ці фільтри",
+      noTokens:"Немає токенів 😕",
+      howTitle:"Як працює",
+      howMsg:"🎁 Trial 7 днів: все безкоштовно.\nПісля trial: дії списують токени.\nОновити: дає іншу страву під фільтри.",
+      bonusTitle:"Бонус",
+      bonusMsg:"Перевірив бонус ✅\nЯкщо сьогодні ще не було — вже нараховано.",
+      rulesMsg:"Trial 7 днів: все безкоштовно.\nПісля trial: дії коштують токени.\nЩодня: бонус (з лімітом).",
+      pricesMsg:"Приклад:\n• Страва дня: 1\n• Інгредієнти: 1\n• Кроки: 2\n• Час: 1"
+    },
+    hr: {
+      uiTitle:"Najjednostavniji recepti",
+      uiSub:"Cook Today • jelo dana • sastojci • recept • filteri",
+      balanceK:"Ukupni balans",
+      homeH:"Današnje jelo",
+      daily:"Jelo dana",
+      dailySub:"Mijenja se svaki dan",
+      recipe:"Recept",
+      recipeSub:"Koraci pripreme",
+      wallet:"Tokeni",
+      walletSub:"Stanje i bonusi",
+      ing:"Sastojci",
+      steps:"Koraci",
+      time:"Vrijeme",
+      ingSub:"Popis namirnica",
+      stepsSub:"Korak po korak",
+      timeSub:"Otprilike",
+      filtersT:"Postavke / Filteri",
+      filtersD:"Dijeta, vrijeme, izbacivanje sastojaka",
+      howT:"Kako radi",
+      howD:"Trial 7 dana, zatim tokeni + bonusi",
+      tbHome:"Početna",
+      tbRecipe:"Recept",
+      tbFilters:"Filteri",
+      tbWallet:"Novčanik",
+      filH:"Postavke",
+      lLang:"🌏 Jezik",
+      lDiet:"Dijeta",
+      lMax:"Max vrijeme",
+      lExcl:"Izbaci (zarez)",
+      save:"Spremi",
+      refresh:"Osvježi",
+      wK:"Stanje",
+      wH:"Novčanik",
+      buy:"Kupi",
+      buySub:"Tokeni / Stars",
+      bonus:"Bonus",
+      bonusSub:"Dnevno ograničeno",
+      support:"Podrška",
+      supportSub:"Pitanja / bugovi",
+      rulesT:"Pravila tokena",
+      pricesT:"Cijene",
+      outIng:"🧾 Sastojci",
+      outSteps:"👨‍🍳 Koraci",
+      outTime:"⏱ Vrijeme",
+      noDish:"Nema jela za ove filtre",
+      noTokens:"Nema tokena 😕",
+      howTitle:"Kako radi",
+      howMsg:"🎁 Trial 7 dana: sve je besplatno.\nNakon trial: radnje troše tokene.\nOsvježi: daje drugo jelo po filterima.",
+      bonusTitle:"Bonus",
+      bonusMsg:"Provjerio bonus ✅\nAko danas još nije bio — već je dodan.",
+      rulesMsg:"Trial 7 dana: sve besplatno.\nNakon trial: radnje koštaju tokene.\nSvaki dan: bonus (s limitom).",
+      pricesMsg:"Primjer:\n• Jelo dana: 1\n• Sastojci: 1\n• Koraci: 2\n• Vrijeme: 1"
+    },
+    en: {
+      uiTitle:"Najjednostavniji recepti",
+      uiSub:"Cook Today • daily dish • ingredients • steps • filters",
+      balanceK:"Total balance",
+      homeH:"Today's dish",
+      daily:"Dish of the day",
+      dailySub:"Updates daily",
+      recipe:"Recipe",
+      recipeSub:"Cooking steps",
+      wallet:"Tokens",
+      walletSub:"Balance & bonuses",
+      ing:"Ingredients",
+      steps:"Steps",
+      time:"Time",
+      ingSub:"Grocery list",
+      stepsSub:"Step by step",
+      timeSub:"Approximate",
+      filtersT:"Settings / Filters",
+      filtersD:"Diet, time, ingredient exclusions",
+      howT:"How it works",
+      howD:"7-day trial, then tokens + bonuses",
+      tbHome:"Home",
+      tbRecipe:"Recipe",
+      tbFilters:"Filters",
+      tbWallet:"Wallet",
+      filH:"Settings",
+      lLang:"🌏 Language",
+      lDiet:"Diet",
+      lMax:"Max time",
+      lExcl:"Exclude (comma)",
+      save:"Save",
+      refresh:"Refresh",
+      wK:"Balance",
+      wH:"Wallet",
+      buy:"Buy",
+      buySub:"Tokens / Stars",
+      bonus:"Bonus",
+      bonusSub:"Daily limited",
+      support:"Support",
+      supportSub:"Questions / bugs",
+      rulesT:"Token rules",
+      pricesT:"Pricing",
+      outIng:"🧾 Ingredients",
+      outSteps:"👨‍🍳 Steps",
+      outTime:"⏱ Time",
+      noDish:"No dish matches these filters",
+      noTokens:"No tokens 😕",
+      howTitle:"How it works",
+      howMsg:"🎁 7-day trial: everything is free.\nAfter trial: actions cost tokens.\nRefresh: gets a different dish matching filters.",
+      bonusTitle:"Bonus",
+      bonusMsg:"Checked bonus ✅\nIf not used today — it’s already added.",
+      rulesMsg:"7-day trial: free.\nAfter trial: actions cost tokens.\nDaily bonus (with cap).",
+      pricesMsg:"Example:\n• Daily dish: 1\n• Ingredients: 1\n• Steps: 2\n• Time: 1"
+    }
   };
 
+  let LANG = "uk";
   let STATUS = null;
   let DISH = null;
 
-  function setText(id, val){ const el=document.getElementById(id); if(el) el.textContent = val; }
-
-  function setUiHr(){
-    setText("uiTitle", T.uiTitle);
-    setText("uiSub", T.uiSub);
+  function setText(id, val){
+    const el = document.getElementById(id);
+    if(el) el.textContent = val;
   }
-  setUiHr();
+  function T(){
+    return I18N[LANG] || I18N.uk;
+  }
+
+  function setUi(){
+    const t = T();
+    setText("uiTitle", t.uiTitle);
+    setText("uiSub", t.uiSub);
+    setText("balK", t.balanceK);
+    setText("homeH", t.homeH);
+
+    setText("tDaily", t.daily);
+    setText("tDailySub", t.dailySub);
+    setText("tRecipe", t.recipe);
+    setText("tRecipeSub", t.recipeSub);
+    setText("tWallet", t.wallet);
+    setText("tWalletSub", t.walletSub);
+
+    setText("tIng", t.ing);
+    setText("tSteps", t.steps);
+    setText("tTime", t.time);
+    setText("tIngSub", t.ingSub);
+    setText("tStepsSub", t.stepsSub);
+    setText("tTimeSub", t.timeSub);
+
+    setText("homeFiltersT", t.filtersT);
+    setText("homeFiltersD", t.filtersD);
+    setText("homeHowT", t.howT);
+    setText("homeHowD", t.howD);
+
+    setText("tbHome", t.tbHome);
+    setText("tbRecipe", t.tbRecipe);
+    setText("tbFilters", t.tbFilters);
+    setText("tbWallet", t.tbWallet);
+
+    setText("filH", t.filH);
+    setText("lLang", t.lLang);
+    setText("lDiet", t.lDiet);
+    setText("lMax", t.lMax);
+    setText("lExcl", t.lExcl);
+    setText("tSave", t.save);
+    setText("tRefresh", t.refresh);
+
+    setText("wK", t.wK);
+    setText("wH", t.wH);
+    setText("tBuy", t.buy);
+    setText("tBuySub", t.buySub);
+    setText("tBonus", t.bonus);
+    setText("tBonusSub", t.bonusSub);
+    setText("tSupport", t.support);
+    setText("tSupportSub", t.supportSub);
+    setText("wRulesT", t.rulesT);
+    setText("wPricesT", t.pricesT);
+    setText("wPricesD", t.pricesD);
+  }
 
   async function api(path, method="GET", body=null){
     const initData = tg?.initData || "";
@@ -639,11 +829,13 @@
     DISH = dish;
     const b1 = document.getElementById("dishBox");
     const b2 = document.getElementById("dishBox2");
+
     if(!dish){
       b1.style.display = "none";
       b2.style.display = "none";
       return;
     }
+
     const tags = (dish.tags || []).slice(0,6);
     const chips = [
       `<span class="chip accent">⏱ ~${dish.time_total_min} min</span>`,
@@ -679,9 +871,9 @@
     if(!STATUS) return;
     const st = document.getElementById("statusText");
     if(STATUS.trial){
-      st.textContent = `Trial: ${STATUS.trial_days_left} d`;
+      st.textContent = `Trial: ${STATUS.trial_days_left} days`;
     } else {
-      st.textContent = `Tokeni: ${STATUS.tokens}`;
+      st.textContent = `Tokens: ${STATUS.tokens}`;
     }
   }
 
@@ -693,19 +885,22 @@
     document.getElementById("balV").textContent = trial ? "TRIAL" : String(tokens);
     document.getElementById("wV").textContent  = trial ? "TRIAL" : String(tokens);
 
-    document.getElementById("meta1").textContent = trial ? `🎁 Trial: ${STATUS.trial_days_left} d` : `🎁 Trial: 0 d`;
-    document.getElementById("meta2").textContent = `🪙 Tokeni: ${tokens}`;
+    document.getElementById("meta1").textContent = trial ? `🎁 Trial: ${STATUS.trial_days_left} days` : `🎁 Trial: 0 days`;
+    document.getElementById("meta2").textContent = `🪙 Tokens: ${tokens}`;
 
-    document.getElementById("wMeta1").textContent = trial ? `🎁 Trial: ${STATUS.trial_days_left} d` : `🎁 Trial: 0 d`;
-    document.getElementById("wMeta2").textContent = `🪙 Tokeni: ${tokens}`;
+    document.getElementById("wMeta1").textContent = trial ? `🎁 Trial: ${STATUS.trial_days_left} days` : `🎁 Trial: 0 days`;
+    document.getElementById("wMeta2").textContent = `🪙 Tokens: ${tokens}`;
   }
 
   async function refreshStatus(){
     STATUS = await api("/api/status");
+    LANG = STATUS.lang || "uk";
+    document.documentElement.lang = LANG;
+    setUi();
     setStatusText();
     renderWalletNumbers();
 
-    // Fill filters form
+    document.getElementById("lang").value = LANG;
     const f = STATUS.filters || {};
     document.getElementById("diet").value = f.diet ?? "any";
     document.getElementById("max_time").value = String(f.max_time ?? 0);
@@ -715,22 +910,23 @@
     });
   }
 
-  async function loadDaily(){
+  async function loadDaily({reset=false} = {}){
+    const t = T();
     try{
-      const r = await api("/api/daily", "POST");
+      const r = await api("/api/daily", "POST", {reset});
       renderDish(r.dish);
       renderOut("", null, 1);
       renderOut("", null, 2);
 
       if(!r.dish){
-        showPopup("Info", T.noDish);
+        showPopup("Info", t.noDish);
       }
       haptic("success");
       await refreshStatus();
     }catch(e){
       if(String(e.message).includes("NO_TOKENS")){
         haptic("error");
-        showPopup("Oops", T.noTokens);
+        showPopup("Oops", t.noTokens);
       } else {
         showPopup("Error", "Daily: " + e.message);
       }
@@ -739,17 +935,18 @@
   }
 
   async function loadAction(action){
+    const t = T();
     try{
       const r = await api("/api/action", "POST", {action});
-      if(action==="ingredients") renderOut(T.outIng, r.data, 2);
-      if(action==="steps") renderOut(T.outSteps, r.data, 2);
-      if(action==="time") renderOut(T.outTime, (r.data ?? 0) + " min", 2);
+      if(action==="ingredients") renderOut(t.outIng, r.data, 2);
+      if(action==="steps") renderOut(t.outSteps, r.data, 2);
+      if(action==="time") renderOut(t.outTime, (r.data ?? 0) + " min", 2);
       haptic("impact","light");
       await refreshStatus();
     }catch(e){
       if(String(e.message).includes("NO_TOKENS")){
         haptic("error");
-        showPopup("Oops", T.noTokens);
+        showPopup("Oops", t.noTokens);
       } else {
         showPopup("Error", action + ": " + e.message);
       }
@@ -769,7 +966,8 @@
     btn.addEventListener("click", ()=> setTab(btn.dataset.tab));
   });
 
-  document.getElementById("btnDaily").onclick = ()=> loadDaily();
+  // -------- Buttons wiring --------
+  document.getElementById("btnDaily").onclick = ()=> loadDaily({reset:false});
   document.getElementById("btnRecipe").onclick = ()=> setTab("recipe");
   document.getElementById("btnWallet").onclick = ()=> setTab("wallet");
 
@@ -778,7 +976,7 @@
   document.getElementById("btnTime").onclick = ()=> loadAction("time");
 
   document.getElementById("goFilters").onclick = ()=> setTab("filters");
-  document.getElementById("goHow").onclick = ()=> showPopup(T.howTitle, T.howMsg);
+  document.getElementById("goHow").onclick = ()=> showPopup(T().howTitle, T().howMsg);
 
   document.getElementById("btnSave").onclick = async ()=>{
     const payload = {
@@ -793,57 +991,52 @@
     await api("/api/filters", "POST", payload);
     haptic("success");
     await refreshStatus();
-    await loadDaily();
+    // після зміни фільтрів — нова страва
+    await loadDaily({reset:true});
   };
 
+  // ✅ Refresh = reset dish-of-day
   document.getElementById("btnRefresh").onclick = async ()=>{
     await refreshStatus();
-    await loadDaily();
+    await loadDaily({reset:true});
   };
 
-  // --- STARS BUY (requires backend /api/buy) ---
-  document.getElementById("btnBuy").onclick = async ()=>{
-    try{
-      const pack = "p50";
-      const r = await api("/api/buy", "POST", {pack});
+  document.getElementById("lang").onchange = async ()=>{
+    const newLang = document.getElementById("lang").value;
+    await api("/api/lang","POST",{lang:newLang});
+    await refreshStatus();
+    // після зміни мови — нова страва вже цією мовою
+    await loadDaily({reset:true});
+  };
 
-      if(!r || !r.link){
-        showPopup("Error", "Backend nije vratio invoice link.");
-        return;
-      }
-
-      tg?.openInvoice?.(r.link, (status)=>{
-        // status: "paid", "cancelled", "failed", "pending"
-        // optional: refresh tokens if paid
-        if(status === "paid"){
-          refreshStatus();
-          haptic("success");
-        }
-      });
-
-    }catch(e){
-      showPopup("Error", T.buyErr + e.message);
-    }
+  // поки залишаємо заглушку (Stars додамо окремо, бо треба бекенд під invoice + webhook)
+  document.getElementById("btnBuy").onclick = ()=>{
+    showPopup("Stars", "Stars оплату підключимо наступним кроком через invoice + підтвердження платежу на бекенді.");
   };
 
   document.getElementById("btnBonus").onclick = async ()=>{
     await refreshStatus();
     haptic("success");
-    showPopup(T.bonusTitle, T.bonusPopup);
+    showPopup(T().bonusTitle, T().bonusMsg);
   };
 
-  document.getElementById("btnSupport").onclick = ()=> showPopup(T.supportTitle, T.supportMsg);
-  document.getElementById("wRules").onclick = ()=> showPopup(T.rulesTitle, T.rulesMsg);
-  document.getElementById("wPrices").onclick = ()=> showPopup(T.pricingTitle, T.pricingMsg);
+  document.getElementById("btnSupport").onclick = ()=>{
+    showPopup(T().support, "Support: напиши автору або додамо кнопку, що відкриває чат.");
+  };
 
+  document.getElementById("wRules").onclick = ()=> showPopup(T().rulesT, T().rulesMsg);
+  document.getElementById("wPrices").onclick = ()=> showPopup(T().pricesT, T().pricesMsg);
+
+  // -------- Init --------
   (async ()=>{
     try{
       await refreshStatus();
-      await loadDaily();
+      await loadDaily({reset:false});
     }catch(e){
-      showPopup("Open inside Telegram", "Ovo je Mini App. Otvori kroz bot.\n" + e.message);
+      showPopup("Open inside Telegram", "Це Mini App. Відкрий через бота.\n" + e.message);
     }
   })();
 </script>
+
 </body>
 </html>
