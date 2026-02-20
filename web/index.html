@@ -468,10 +468,10 @@
         </div>
 
         <div class="checks">
-          <label class="chk"><input type="checkbox" id="gluten_free"> gluten_free</label>
-          <label class="chk"><input type="checkbox" id="lactose_free"> lactose_free</label>
-          <label class="chk"><input type="checkbox" id="high_protein"> high_protein</label>
-          <label class="chk"><input type="checkbox" id="low_calorie"> low_calorie</label>
+          <label class="chk"><input type="checkbox" id="gluten_free"> Gluten free</label>
+          <label class="chk"><input type="checkbox" id="lactose_free"> Lactose free</label>
+          <label class="chk"><input type="checkbox" id="high_protein"> High protein</label>
+          <label class="chk"><input type="checkbox" id="low_calorie"> Low calorie</label>
         </div>
 
         <div class="btnRow">
@@ -954,7 +954,7 @@
     document.getElementById("diet").value = f.diet ?? "any";
     document.getElementById("max_time").value = String(f.max_time ?? 0);
     document.getElementById("exclude").value = (f.exclude||[]).join(", ");
-    ["gluten_free","lactose_free","high_protein","low_calorie"].forEach(k=>{
+    ["Gluten free","Lactose free","High protein","Low calorie"].forEach(k=>{
       document.getElementById(k).checked = !!f[k];
     });
   }
@@ -1035,11 +1035,11 @@
   document.getElementById("btnSave").onclick = async ()=>{
     const payload = {
       diet: document.getElementById("diet").value,
-      max_time: parseInt(document.getElementById("max_time").value, 10),
-      gluten_free: document.getElementById("gluten_free").checked,
-      lactose_free: document.getElementById("lactose_free").checked,
-      high_protein: document.getElementById("high_protein").checked,
-      low_calorie: document.getElementById("low_calorie").checked,
+      max_time: parseInt(document.getElementById("Max time").value, 10),
+      gluten_free: document.getElementById("Gluten free").checked,
+      lactose_free: document.getElementById("Lactose free").checked,
+      high_protein: document.getElementById("High protein").checked,
+      low_calorie: document.getElementById("Low calorie").checked,
       exclude: document.getElementById("exclude").value.split(",").map(s=>s.trim()).filter(Boolean)
     };
     await api("/api/filters", "POST", payload);
