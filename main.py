@@ -30,8 +30,8 @@ COSTS = {"daily": 1, "ingredients": 1, "steps": 2, "time": 1}
 
 ALLOWED_TAGS = {
     "vegetarian", "vegan", "pescatarian",
-    "gluten_free", "lactose_free",
-    "high_protein", "low_calorie",
+    "Gluten free", "Lactose free",
+    "High protein", "Low calorie",
     "quick",
 }
 
@@ -74,7 +74,7 @@ def today() -> str:
 
 def load_db() -> Dict[str, Any]:
     if not os.path.exists(DB_PATH):
-        return {"users": {}, "daily": {}, "used_titles": {"uk": [], "hr": [], "en": []}}
+        return {"users": {}, "daily": {}, "used_titles": {"ua": [], "hr": [], "en": []}}
     with open(DB_PATH, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -147,12 +147,12 @@ def charge(u: Dict[str, Any], feature: str) -> bool:
 
 
 
-def _tr(lang: str, uk: str, hr: str, en: str) -> str:
+def _tr(lang: str, ua: str, hr: str, en: str) -> str:
     if lang == "hr":
         return hr
     if lang == "en":
         return en
-    return uk
+    return ua
 
 def _norm_words(items: List[str]) -> List[str]:
     out = []
@@ -170,8 +170,8 @@ def _contains_any(text: str, words: List[str]) -> bool:
             return True
     return False
 
-def _qty(lang: str, a_uk: str, a_hr: str, a_en: str) -> str:
-    return _tr(lang, a_uk, a_hr, a_en)
+def _qty(lang: str, a_ua: str, a_hr: str, a_en: str) -> str:
+    return _tr(lang, a_ua, a_hr, a_en)
 
 def _fmt_item(name: str, qty: str) -> str:
     name = (name or "").strip()
@@ -206,8 +206,8 @@ def dish_matches_filters(d: Dict[str, Any], f: Dict[str, Any]) -> bool:
     for k in ("Gluten free", "Lactose free", "High protein", "Low calorie"):
         if f.get(k) and k not in tags:
             return False
-    max_time = int(f.get("max_time", 0) or 0)
-    if max_time and int(d.get("time_total_min", 10_000)) > max_time:
+    Max time = int(f.get("Max time", 0) or 0)
+    if Max time and int(d.get("time_total_min", 10_000)) > Max time:
         return False
     excl = [x.strip().lower() for x in (f.get("exclude") or []) if str(x).strip()]
     if excl:
@@ -220,7 +220,7 @@ def dish_matches_filters(d: Dict[str, Any], f: Dict[str, Any]) -> bool:
 
 
 def _build_title(lang: str, diet: str, f: Dict[str, Any], rng: random.Random) -> str:
-    quick = f.get("max_time", 0) and int(f.get("max_time", 0)) <= 15
+    quick = f.get("Max time", 0) and int(f.get("Max time", 0)) <= 15
     if quick:
         base = _tr(lang, "Швидка страва", "Brzo jelo", "Quick dish")
     else:
@@ -483,9 +483,9 @@ def _build_steps(lang: str, f: Dict[str, Any], rng: random.Random) -> List[str]:
 
 
 def _estimate_time(f: Dict[str, Any], rng: random.Random) -> int:
-    max_time = int(f.get("max_time", 0) or 0)
-    if max_time:
-        return max(8, min(max_time, rng.randint(8, max_time)))
+    Max time = int(f.get("Max time", 0) or 0)
+    if Max time:
+        return max(8, min(Max time, rng.randint(8, Max time)))
     
     return rng.randint(10, 25)
 
@@ -514,7 +514,7 @@ def generate_dish_for_user(u: Dict[str, Any], refresh_seed: Optional[str] = None
     Deterministic per-day/per-user, but when refresh_seed changes (e.g. "refresh click"),
     you get a different dish.
     """
-    lang = u.get("lang", "uk")
+    lang = u.get("lang", "ua")
     f = u.get("filters") or default_filters()
     diet = f.get("diet", "any")
 
@@ -607,7 +607,7 @@ def api_status(x_telegram_init_data: str = Header(default="")):
     
     if not x_telegram_init_data:
         return {
-            "lang": "uk",
+            "lang": "ua",
             "trial": True,
             "trial_days_left": TRIAL_DAYS,
             "tokens": 15,
@@ -633,9 +633,9 @@ def api_status(x_telegram_init_data: str = Header(default="")):
 @app.post("/api/lang")
 def api_lang(payload: Dict[str, Any], x_telegram_init_data: str = Header(default="")):
     user_id = uid_from_init(x_telegram_init_data)
-    lang = payload.get("lang", "uk")
-    if lang not in ("uk", "hr", "en"):
-        lang = "uk"
+    lang = payload.get("lang", "ua")
+    if lang not in ("ua", "hr", "en"):
+        lang = "ua"
     db = load_db()
     u = get_user(db, user_id)
     u["lang"] = lang
