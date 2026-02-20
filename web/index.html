@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="uk">
+<html lang="ua">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -452,7 +452,7 @@
 
           <div class="field">
             <label id="lMax">Max time</label>
-            <select id="max_time">
+            <select id="Max time">
               <option value="0">∞</option>
               <option value="15">15</option>
               <option value="30">30</option>
@@ -468,10 +468,10 @@
         </div>
 
         <div class="checks">
-          <label class="chk"><input type="checkbox" id="gluten_free"> Gluten free</label>
-          <label class="chk"><input type="checkbox" id="lactose_free"> Lactose free</label>
-          <label class="chk"><input type="checkbox" id="high_protein"> High protein</label>
-          <label class="chk"><input type="checkbox" id="low_calorie"> Low calorie</label>
+          <label class="chk"><input type="checkbox" id="Gluten free"> Gluten free</label>
+          <label class="chk"><input type="checkbox" id="Lactose free"> Lactose free</label>
+          <label class="chk"><input type="checkbox" id="High protein"> High protein</label>
+          <label class="chk"><input type="checkbox" id="Low calorie"> Low calorie</label>
         </div>
 
         <div class="btnRow">
@@ -595,7 +595,7 @@
 
   
   const I18N = {
-    uk: {
+    ua: {
       uiTitle:"Najjednostavniji recepti",
       uiSub:"Cook Today • страва дня • інгредієнти • рецепт • фільтри",
       balanceK:"Общий баланс",
@@ -783,7 +783,7 @@
     }
   };
 
-  let LANG = "uk";
+  let LANG = "ua";
   let STATUS = null;
   let DISH = null;
 
@@ -944,7 +944,7 @@
 
   async function refreshStatus(){
     STATUS = await api("/api/status");
-    LANG = STATUS.lang || "uk";
+    LANG = STATUS.lang || "ua";
     setUi(LANG);
     setStatusText();
     renderWalletNumbers();
@@ -952,7 +952,7 @@
     document.getElementById("lang").value = LANG;
     const f = STATUS.filters || {};
     document.getElementById("diet").value = f.diet ?? "any";
-    document.getElementById("max_time").value = String(f.max_time ?? 0);
+    document.getElementById("Max time").value = String(f.max_time ?? 0);
     document.getElementById("exclude").value = (f.exclude||[]).join(", ");
     ["Gluten free","Lactose free","High protein","Low calorie"].forEach(k=>{
       document.getElementById(k).checked = !!f[k];
