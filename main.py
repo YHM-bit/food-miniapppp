@@ -12,7 +12,7 @@ TZ = ZoneInfo("Europe/Uzhgorod")
 DB_PATH = "db.json"
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-AI_API_KEY = os.environ.get("AI_API_KEY")  # (не використовується в цьому швидкому генераторі)
+AI_API_KEY = os.environ.get("AI_API_KEY")  
 AI_ENDPOINT = os.environ.get("AI_ENDPOINT", "https://models.github.ai/inference")
 AI_MODEL = os.environ.get("AI_MODEL", "openai/gpt-4o-mini")
 
@@ -53,7 +53,7 @@ def health():
 
 @app.get("/", response_class=HTMLResponse)
 def root():
-    # Mini App HTML
+    
     if os.path.exists("web/index.html"):
         return FileResponse("web/index.html")
     if os.path.exists("index.html"):
@@ -85,11 +85,11 @@ def save_db(db: Dict[str, Any]) -> None:
 def default_filters() -> Dict[str, Any]:
     return {
         "diet": "any",              
-        "gluten_free": False,
-        "lactose_free": False,
-        "high_protein": False,
-        "low_calorie": False,
-        "max_time": 0,              
+        "Gluten free": False,
+        "Lactose free": False,
+        "High protein": False,
+        "Low calorie": False,
+        "Max time": 0,              
         "exclude": [],              
     }
 
@@ -203,7 +203,7 @@ def dish_matches_filters(d: Dict[str, Any], f: Dict[str, Any]) -> bool:
     diet = f.get("diet", "any")
     if diet != "any" and diet not in tags:
         return False
-    for k in ("gluten_free", "lactose_free", "high_protein", "low_calorie"):
+    for k in ("Gluten free", "Lactose free", "High protein", "Low calorie"):
         if f.get(k) and k not in tags:
             return False
     max_time = int(f.get("max_time", 0) or 0)
@@ -235,7 +235,7 @@ def _build_title(lang: str, diet: str, f: Dict[str, Any], rng: random.Random) ->
     ]
 
     
-    if f.get("gluten_free"):
+    if f.get("Gluten free"):
         variants = [v for v in variants if v not in [_tr(lang, "паста","tjestenina","pasta")]]
 
     v = rng.choice(variants)
@@ -319,14 +319,14 @@ def _build_ingredients(lang: str, diet: str, f: Dict[str, Any], rng: random.Rand
 
    
     p_list = proteins[diet][:]
-    if f.get("lactose_free"):
+    if f.get("Lactose free"):
         p_list = [p for p in p_list if not _contains_any(p, ["сир","йогурт","cheese","yogurt","sir","jogurt","vrhnje"])]
         sauce_pool = sauces[:]
     else:
         sauce_pool = sauces + dairy_sauces
 
     
-    carb_pool = carbs_gf[:] if f.get("gluten_free") else carbs[:]
+    carb_pool = carbs_gf[:] if f.get("Gluten free") else carbs[:]
 
     prot = pick_from(p_list) or pick_from(proteins["any"])
     carb = pick_from(carb_pool)
@@ -335,11 +335,11 @@ def _build_ingredients(lang: str, diet: str, f: Dict[str, Any], rng: random.Rand
 
     
     protein_qty = _qty(lang, "120–180 г", "120–180 g", "120–180 g")
-    if f.get("high_protein"):
+    if f.get("High protein"):
         protein_qty = _qty(lang, "180–250 г", "180–250 g", "180–250 g")
 
     carb_qty = _qty(lang, "60–80 г (сух.)", "60–80 g (suho)", "60–80 g (dry)")
-    if f.get("low_calorie"):
+    if f.get("Low calorie"):
         carb_qty = _qty(lang, "40–60 г (сух.)", "40–60 g (suho)", "40–60 g (dry)")
 
     veg_qty = _qty(lang, "1 шт", "1 kom", "1 pc")
@@ -410,7 +410,7 @@ def _build_steps(lang: str, f: Dict[str, Any], rng: random.Random) -> List[str]:
         "1) Prep (2–4 min): wash/chop veggies. If canned — drain and rinse."
     ))
 
-    if f.get("gluten_free"):
+    if f.get("Gluten free"):
         steps.append(_tr(
             lang,
             "2) Перевір: використовуй лише безглютенову основу (рис/гречка/картопля/кіноа).",
@@ -418,7 +418,7 @@ def _build_steps(lang: str, f: Dict[str, Any], rng: random.Random) -> List[str]:
             "2) Check: use gluten-free base (rice/buckwheat/potato/quinoa)."
         ))
 
-    if f.get("lactose_free"):
+    if f.get("Lactose free"):
         steps.append(_tr(
             lang,
             "3) Без лактози: уникай сиру/йогурту, заправляй олією, лимоном або соєвим соусом.",
@@ -456,7 +456,7 @@ def _build_steps(lang: str, f: Dict[str, Any], rng: random.Random) -> List[str]:
         "5) Taste (1 min): add salt/pepper. Optionally add lemon or a bit more sauce."
     ))
 
-    if f.get("high_protein"):
+    if f.get("High protein"):
         steps.append(_tr(
             lang,
             "6) High-protein порада: збільш порцію білка і зменш пасту/хліб.",
@@ -464,7 +464,7 @@ def _build_steps(lang: str, f: Dict[str, Any], rng: random.Random) -> List[str]:
             "6) High-protein tip: increase protein, reduce pasta/bread."
         ))
 
-    if f.get("low_calorie"):
+    if f.get("Low calorie"):
         steps.append(_tr(
             lang,
             "7) Low-calorie порада: більше овочів, менше олії (1 ч. л. замість 1 ст. л.).",
@@ -494,7 +494,7 @@ def _tags_for_filters(f: Dict[str, Any]) -> List[str]:
     diet = f.get("diet", "any")
     if diet in ("vegetarian","vegan","pescatarian"):
         tags.append(diet)
-    for k in ("gluten_free","lactose_free","high_protein","low_calorie"):
+    for k in ("Gluten free","Lactose free","High protein","Low calorie"):
         if f.get(k):
             tags.append(k)
    
@@ -678,7 +678,7 @@ def api_daily(payload: Dict[str, Any] = None, x_telegram_init_data: str = Header
             "ingredients": ["2 eggs — 2 pcs", "salt — to taste", "olive oil — 1 tbsp"],
             "steps": ["Prep 2–4 min", "Cook 6–10 min", "Serve"],
             "time_total_min": 12,
-            "tags": ["quick", "high_protein"]
+            "tags": ["quick", "High protein"]
         }
         return {"ok": True, "dish": dish, "demo": True}
 
