@@ -434,7 +434,7 @@
           <div class="field">
             <label id="lLang">🌏 Мова</label>
             <select id="lang">
-              <option value="uk">uk</option>
+              <option value="uk">ua</option>
               <option value="hr">hr</option>
               <option value="en">en</option>
             </select>
@@ -961,7 +961,7 @@
 
   
   async function loadDaily(auto=false){
-    const t = I18N[LANG] || I18N.uk;
+    const t = I18N[LANG] || I18N.ua;
     try{
       const r = await api("/api/daily", "POST");
       renderDish(r.dish);
@@ -985,7 +985,7 @@
   }
 
   async function loadAction(action){
-    const t = I18N[LANG] || I18N.uk;
+    const t = I18N[LANG] || I18N.ua;
     try{
       const r = await api("/api/action", "POST", {action});
       if(action==="ingredients") renderOut(t.outIng, r.data, 2);
@@ -1062,29 +1062,29 @@
 
   
   document.getElementById("btnBuy").onclick = ()=>{
-    const t = I18N[LANG] || I18N.uk;
+    const t = I18N[LANG] || I18N.ua;
     showPopup(t.popup_buy_title, t.popup_buy_msg);
   };
 
   document.getElementById("btnBonus").onclick = async ()=>{
-    const t = I18N[LANG] || I18N.uk;
+    const t = I18N[LANG] || I18N.ua;
     await refreshStatus();
     haptic("success");
     showPopup(t.popup_bonus_title, t.popup_bonus_msg);
   };
 
   document.getElementById("btnSupport").onclick = ()=>{
-    const t = I18N[LANG] || I18N.uk;
+    const t = I18N[LANG] || I18N.ua;
     showPopup(t.popup_support_title, t.popup_support_msg);
   };
 
   document.getElementById("wRules").onclick = ()=>{
-    const t = I18N[LANG] || I18N.uk;
+    const t = I18N[LANG] || I18N.ua;
     showPopup(t.popup_rules_title, t.popup_rules_msg);
   };
 
   document.getElementById("wPrices").onclick = ()=>{
-    const t = I18N[LANG] || I18N.uk;
+    const t = I18N[LANG] || I18N.ua;
     showPopup(t.popup_prices_title, t.popup_prices_msg);
   };
 
