@@ -98,7 +98,7 @@ def get_user(db: Dict[str, Any], uid: int) -> Dict[str, Any]:
     if suid not in db["users"]:
         created = now()
         db["users"][suid] = {
-            "lang": "uk",
+            "lang": "ua",
             "tokens": 15,
             "created_at": created.isoformat(),
             "trial_until": (created + timedelta(days=TRIAL_DAYS)).isoformat(),
@@ -451,7 +451,7 @@ def _build_steps(lang: str, f: Dict[str, Any], rng: random.Random) -> List[str]:
 
     steps.append(_tr(
         lang,
-        "5) Смак (1 хв): посоли/поперчи. Якщо хочеш — додай лимонний сік або ще трішки соусу.",
+        "5) Смак (1 хв): посоли/поперчи. Якщо хочеш-додай лимонний сік або ще трішки соусу.",
         "5) Okus (1 min): posoli/papri. Po želji dodaj limun ili još malo umaka.",
         "5) Taste (1 min): add salt/pepper. Optionally add lemon or a bit more sauce."
     ))
@@ -459,17 +459,17 @@ def _build_steps(lang: str, f: Dict[str, Any], rng: random.Random) -> List[str]:
     if f.get("High protein"):
         steps.append(_tr(
             lang,
-            "6) High-protein порада: збільш порцію білка і зменш пасту/хліб.",
-            "6) High-protein savjet: povećaj protein, smanji tjesteninu/kruh.",
-            "6) High-protein tip: increase protein, reduce pasta/bread."
+            "6) High protein порада: збільш порцію білка і зменш пасту/хліб.",
+            "6) High protein savjet: povećaj protein, smanji tjesteninu/kruh.",
+            "6) High protein tip: increase protein, reduce pasta/bread."
         ))
 
     if f.get("Low calorie"):
         steps.append(_tr(
             lang,
-            "7) Low-calorie порада: більше овочів, менше олії (1 ч. л. замість 1 ст. л.).",
-            "7) Low-calorie savjet: više povrća, manje ulja (1 žličica umjesto 1 žlice).",
-            "7) Low-calorie tip: more veggies, less oil (1 tsp instead of 1 tbsp)."
+            "7) Low calorie порада: більше овочів, менше олії (1 ч. л. замість 1 ст. л.).",
+            "7) Low calorie savjet: više povrća, manje ulja (1 žličica umjesto 1 žlice).",
+            "7) Low calorie tip: more veggies, less oil (1 tsp instead of 1 tbsp)."
         ))
 
     steps.append(_tr(
