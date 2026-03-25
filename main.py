@@ -477,12 +477,11 @@ def _build_steps(lang: str, f: Dict[str, Any], rng: random.Random) -> List[str]:
 
 
 def _estimate_time(f: Dict[str, Any], rng: random.Random) -> int:
-    Max time = int(f.get("Max time", 0) or 0)
-    if Max time:
-        return max(8, min(Max time, rng.randint(8, Max time)))
-    
+    max_time = int(f.get("Max time", 0) or 0)
+    if max_time:
+        return max(8, min(max_time, rng.randint(8, max_time)))
     return rng.randint(10, 25)
-
+    
 def _tags_for_filters(f: Dict[str, Any]) -> List[str]:
     tags = ["quick"]
     diet = f.get("diet", "any")
