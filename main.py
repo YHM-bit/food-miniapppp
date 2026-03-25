@@ -206,8 +206,8 @@ def dish_matches_filters(d: Dict[str, Any], f: Dict[str, Any]) -> bool:
     for k in ("Gluten free", "Lactose free", "High protein", "Low calorie"):
         if f.get(k) and k not in tags:
             return False
-    Max time = int(f.get("Max time", 0) or 0)
-    if Max time and int(d.get("time_total_min", 10_000)) > Max time:
+    max_time = int(f.get("Max time", 0) or 0)
+    if max_time and int(d.get("time_total_min", 10_000)) > Max time:
         return False
     excl = [x.strip().lower() for x in (f.get("exclude") or []) if str(x).strip()]
     if excl:
@@ -243,9 +243,6 @@ def _build_title(lang: str, diet: str, f: Dict[str, Any], rng: random.Random) ->
 
 
 def _build_ingredients(lang: str, diet: str, f: Dict[str, Any], rng: random.Random) -> List[str]:
-    """
-    Returns ingredients with quantities. Still respects gluten/lactose/exclude.
-    """
     excl = _norm_words(f.get("exclude") or [])
 
     def pick_from(options: List[str]) -> str:
@@ -398,9 +395,6 @@ def _build_ingredients(lang: str, diet: str, f: Dict[str, Any], rng: random.Rand
 
 
 def _build_steps(lang: str, f: Dict[str, Any], rng: random.Random) -> List[str]:
-    """
-    More detailed steps with micro-timing. Still universal and fast.
-    """
     steps = []
 
     steps.append(_tr(
@@ -510,10 +504,6 @@ def _sig_for_dish(title: str, ingredients: List[str], tags: List[str]) -> str:
 
 
 def generate_dish_for_user(u: Dict[str, Any], refresh_seed: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Deterministic per-day/per-user, but when refresh_seed changes (e.g. "refresh click"),
-    you get a different dish.
-    """
     lang = u.get("lang", "ua")
     f = u.get("filters") or default_filters()
     diet = f.get("diet", "any")
