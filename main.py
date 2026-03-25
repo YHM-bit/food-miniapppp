@@ -241,8 +241,8 @@ def _build_title(lang: str, diet: str, f: Dict[str, Any], rng: random.Random) ->
 
     
     if f.get("Gluten free"):
-        variants = [v for v in variants if v not in [_tr(lang, "паста","tjestenina","pasta")]]
-
+        variants = [v for v in variants if v not in [_tr(lang, "паста", "tjestenina", "pasta")]]
+    
     v = rng.choice(variants)
     return f"{base}: {v}".strip()
 
@@ -253,6 +253,60 @@ def _build_ingredients(lang: str, diet: str, f: Dict[str, Any], rng: random.Rand
     def pick_from(options: List[str]) -> str:
         opts = [o for o in options if (o and not _contains_any(o, excl))]
         return rng.choice(opts) if opts else ""
+
+    proteins = {
+        "vegan": [_tr(lang,"тофу","tofu","tofu"), _tr(lang,"квасоля (консерва)","grah (konzerva)","beans (canned)"), _tr(lang,"нут (консерва)","slanutak (konzerva)","chickpeas (canned)"), _tr(lang,"сочевиця","leća","lentils")],
+        "vegetarian": [_tr(lang,"яйця","jaja","eggs"), _tr(lang,"сир","sir","cheese"), _tr(lang,"грецький йогурт","grčki jogurt","Greek yogurt")],
+        "pescatarian": [_tr(lang,"тунець (консерва)","tuna (konzerva)","tuna (canned)"), _tr(lang,"лосось","losos","salmon"), _tr(lang,"сардини (консерва)","srdele (konzerva)","sardines (canned)")],
+        "any": [_tr(lang,"куряче філе","pileći file","chicken breast"), _tr(lang,"індичка","puretina","turkey"), _tr(lang,"тунець (консерва)","tuna (konzerva)","tuna (canned)"), _tr(lang,"яйця","jaja","eggs"), _tr(lang,"тофу","tofu","tofu")],
+    }
+
+    carbs_gf = [_tr(lang,"рис","riža","rice"), _tr(lang,"картопля","krumpir","potato"), _tr(lang,"гречка","heljda","buckwheat"), _tr(lang,"кіноа","kvinoja","quinoa")]
+    carbs = carbs_gf + [_tr(lang,"паста","tjestenina","pasta"), _tr(lang,"тортилья","tortilja","tortilla"), _tr(lang,"хліб","kruh","bread")]
+
+    
+    carb_pool = carbs_gf[:] if f.get("Gluten free") else carbs[:]
+
+    veggies = [_tr(lang,"помідор","rajčica","tomato"), _tr(lang,"огірок","krastavac","cucumber"), _tr(lang,"перець","paprika","pepper"), _tr(lang,"шпинат","špinat","spinach"), _tr(lang,"морква","mrkva","carrot"), _tr(lang,"цибуля","luk","onion"), _tr(lang,"броколі","brokula","broccoli"), _tr(lang,"гриби","gljive","mushrooms"), _tr(lang,"кукурудза (консерва)","kukuruz (konzerva)","corn (canned)")]
+
+    sauces = [_tr(lang,"оливкова олія","maslinovo ulje","olive oil"), _tr(lang,"соєвий соус","soja umak","soy sauce"), _tr(lang,"томатний соус","umak od rajčice","tomato sauce"), _tr(lang,"лимонний сік","limunov sok","lemon juice")]
+    dairy_sauces = [_tr(lang,"йогуртовий соус","jogurt umak","yogurt sauce"), _tr(lang,"сметана/йогурт","vrhnje/jogurt","sour cream/yogurt")]
+
+   
+    p_list = proteins.get(diet, proteins["any"])[:]
+    if f.get("Lactose free"):
+        p_list = [p for p in p_list if not _contains_any(p, ["сир","йогурт","cheese","yogurt","vrhnje"])]
+        sauce_pool = sauces[:]
+    else:
+        sauce_pool = sauces + dairy_sauces
+
+    prot = pick_from(p_list) or pick_from(proteins["any"])
+    carb = pick_from(carb_pool)
+    veg_pick = _pick_distinct(rng, _avoid_exclude(veggies, excl), 3)
+    sauce = pick_from(sauce_pool)
+
+    
+    protein_qty = _qty(lang, "120–180 г", "120–180 g", "120–180 g")
+    if f.get("High protein"):
+        protein_qty = _qty(lang, "180–250 г", "180–250 g", "180–250 g")
+
+    carb_qty = _qty(lang, "60–80 г (сух.)", "60–80 g (suho)", "60–80 g (dry)")
+    if f.get("Low calorie"):
+        carb_qty = _qty(lang, "40–60 г (сух.)", "40–60 g (suho)", "40–60 g (dry)")
+
+    
+    items = []
+    items.append(_fmt_item(prot, protein_qty))
+    if carb:
+        items.append(_fmt_item(carb, carb_qty))
+    for v in veg_pick:
+        items.append(_fmt_item(v, _qty(lang, "1 шт", "1 kom", "1 pc")))
+    if sauce:
+        items.append(_fmt_item(sauce, _qty(lang, "1–2 ст. л.", "1–2 žlice", "1–2 tbsp")))
+    items.append(_fmt_item(_tr(lang,"сіль","sol","salt"), _qty(lang,"за смаком","po ukusu","to taste")))
+    items.append(_fmt_item(_tr(lang,"перець","papar","pepper"), _qty(lang,"за смаком","po ukusu","to taste")))
+
+    return _avoid_exclude(items, excl)
 
     
     proteins = {
@@ -495,7 +549,6 @@ def _tags_for_filters(f: Dict[str, Any]) -> List[str]:
     for k in ("Gluten free","Lactose free","High protein","Low calorie"):
         if f.get(k):
             tags.append(k)
-   
     out = []
     for t in tags:
         if t in ALLOWED_TAGS and t not in out:
