@@ -201,19 +201,24 @@ def _pick_distinct(rng: random.Random, options: List[str], k: int) -> List[str]:
 def dish_matches_filters(d: Dict[str, Any], f: Dict[str, Any]) -> bool:
     tags = set(d.get("tags", []))
     diet = f.get("diet", "any")
+
     if diet != "any" and diet not in tags:
         return False
+
     for k in ("Gluten free", "Lactose free", "High protein", "Low calorie"):
         if f.get(k) and k not in tags:
             return False
+
     max_time = int(f.get("Max time", 0) or 0)
-if max_time and int(d.get("time_total_min", 10_000)) > max_time:
-    return False
+    if max_time and int(d.get("time_total_min", 10_000)) > max_time:
+        return False
+
     excl = [x.strip().lower() for x in (f.get("exclude") or []) if str(x).strip()]
     if excl:
         blob = " ".join([str(x).lower() for x in d.get("ingredients", [])])
         if any(w in blob for w in excl):
             return False
+
     return True
 
 
