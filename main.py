@@ -207,8 +207,8 @@ def dish_matches_filters(d: Dict[str, Any], f: Dict[str, Any]) -> bool:
         if f.get(k) and k not in tags:
             return False
     max_time = int(f.get("Max time", 0) or 0)
-    if max_time and int(d.get("time_total_min", 10_000)) > Max time:
-        return False
+if max_time and int(d.get("time_total_min", 10_000)) > max_time:
+    return False
     excl = [x.strip().lower() for x in (f.get("exclude") or []) if str(x).strip()]
     if excl:
         blob = " ".join([str(x).lower() for x in d.get("ingredients", [])])
