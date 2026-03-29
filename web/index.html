@@ -1,1102 +1,782 @@
-<!doctype html>
-<html lang="ua">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="color-scheme" content="light dark" />
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <title>Cook Today</title>
+import os, json, re, hmac, hashlib, random
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+from urllib.parse import parse_qsl
+from typing import Dict, Any, List, Optional
+from threading import Lock
 
-  <style>
-    :root{
-      --bg: #0b0f14;
-      --bg2:#070a0f;
-      --text:#e9eef5;
-      --muted:rgba(233,238,245,.70);
-      --card: rgba(255,255,255,.06);
-      --card2: rgba(255,255,255,.04);
-      --stroke: rgba(255,255,255,.10);
-      --shadow: 0 16px 40px rgba(0,0,0,.35);
-      --accent:#4da3ff;
-      --accent2:#7c5cff;
-      --good:#3ddc97;
-      --danger:#ff5c7a;
-      --radius:18px;
-      --tabH: 78px;
-    }
+from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import FileResponse, HTMLResponse
 
-    *{box-sizing:border-box}
-    body{
-      margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      color:var(--text);
-      background:
-        radial-gradient(900px 600px at 10% -5%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 60%),
-        radial-gradient(800px 500px at 110% 10%, color-mix(in srgb, var(--accent2) 22%, transparent), transparent 62%),
-        radial-gradient(900px 700px at 40% 120%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%),
-        linear-gradient(180deg, var(--bg), var(--bg2));
-      min-height:100vh;
-    }
+TZ = ZoneInfo("Europe/Uzhgorod")
+DB_PATH = "db.json"
 
-    .wrap{
-      max-width:760px;
-      margin:0 auto;
-      padding:16px 14px calc(var(--tabH) + 18px);
-    }
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+AI_API_KEY = os.environ.get("AI_API_KEY")  
+AI_ENDPOINT = os.environ.get("AI_ENDPOINT", "https://models.github.ai/inference")
+AI_MODEL = os.environ.get("AI_MODEL", "openai/gpt-4o-mini")
 
-    .header{
-      display:flex;
-      justify-content:space-between;
-      align-items:flex-start;
-      gap:12px;
-      margin-bottom:14px;
-    }
-    .title{
-      margin:0;
-      font-size:22px;
-      font-weight:900;
-      letter-spacing:.2px;
-    }
-    .sub{
-      margin:6px 0 0 0;
-      color:var(--muted);
-      font-size:13px;
-      line-height:1.35;
+
+if not BOT_TOKEN:
+    raise RuntimeError("Set BOT_TOKEN env var.")
+
+LOCK = Lock()
+
+TRIAL_DAYS = 7
+DAILY_BONUS = 5
+FREE_CAP = 30
+
+COSTS = {"daily": 1, "ingredients": 1, "steps": 2, "time": 1}
+
+ALLOWED_TAGS = {
+    "vegetarian", "vegan", "pescatarian",
+    "Gluten free", "Lactose free",
+    "High protein", "Low calorie",
+    "quick",
+}
+
+app = FastAPI()
+
+
+
+
+@app.get("/health")
+def health():
+    return {
+        "ok": True,
+        "files": {
+            "web/index.html": os.path.exists("web/index.html"),
+            "index.html": os.path.exists("index.html"),
+            "db.json": os.path.exists("db.json"),
+        }
     }
 
-    .card{
-      border:1px solid var(--stroke);
-      border-radius:var(--radius);
-      background: linear-gradient(180deg, var(--card), var(--card2));
-      box-shadow: var(--shadow);
-      padding:14px;
+@app.get("/", response_class=HTMLResponse)
+def root():
+    
+    if os.path.exists("web/index.html"):
+        return FileResponse("web/index.html")
+    if os.path.exists("index.html"):
+        return FileResponse("index.html")
+    return HTMLResponse(
+        "<h2>index.html not found</h2><p>Expected: web/index.html</p>",
+        status_code=500
+    )
+
+
+
+
+def now() -> datetime:
+    return datetime.now(TZ)
+
+def today() -> str:
+    return now().date().isoformat()
+
+def load_db() -> Dict[str, Any]:
+    if not os.path.exists(DB_PATH):
+        return {"users": {}, "daily": {}, "used_titles": {"ua": [], "hr": [], "en": []}}
+    with open(DB_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_db(db: Dict[str, Any]) -> None:
+    with open(DB_PATH, "w", encoding="utf-8") as f:
+        json.dump(db, f, ensure_ascii=False, indent=2)
+
+def default_filters() -> Dict[str, Any]:
+    return {
+        "diet": "any",              
+        "Gluten free": False,
+        "Lactose free": False,
+        "High protein": False,
+        "Low calorie": False,
+        "Max time": 0,              
+        "exclude": [],              
     }
+
+def get_user(db: Dict[str, Any], uid: int) -> Dict[str, Any]:
+    suid = str(uid)
+    if suid not in db["users"]:
+        created = now()
+        db["users"][suid] = {
+            "lang": "ua",
+            "tokens": 15,
+            "created_at": created.isoformat(),
+            "trial_until": (created + timedelta(days=TRIAL_DAYS)).isoformat(),
+            "last_bonus": "",
+            "filters": default_filters(),
+            "daily_paid": "",
+            "favorites": [],
+            "uploads": [],
+            "last_dish_sig": "",  
+        }
+    u = db["users"][suid]
+    u.setdefault("favorites", [])
+    u.setdefault("uploads", [])
+    u.setdefault("daily_paid", "")
+    u.setdefault("last_dish_sig", "")
+    if "filters" not in u:
+        u["filters"] = default_filters()
+    return u
+
+
+
+
+def is_trial(u: Dict[str, Any]) -> bool:
+    return now() < datetime.fromisoformat(u["trial_until"])
+
+def trial_days_left(u: Dict[str, Any]) -> int:
+    d = datetime.fromisoformat(u["trial_until"]) - now()
+    return max(0, int(d.total_seconds() // 86400) + 1)
+
+def apply_bonus(u: Dict[str, Any]) -> None:
+    if u.get("last_bonus") == today():
+        return
+    u["last_bonus"] = today()
+    if not is_trial(u):
+        u["tokens"] = min(int(u.get("tokens", 0)) + DAILY_BONUS, FREE_CAP)
+
+def charge(u: Dict[str, Any], feature: str) -> bool:
+    if is_trial(u):
+        return True
+    cost = int(COSTS.get(feature, 1))
+    if int(u.get("tokens", 0)) >= cost:
+        u["tokens"] = int(u["tokens"]) - cost
+        return True
+    return False
+
+
+
+
+def _tr(lang: str, ua: str, hr: str, en: str) -> str:
+    if lang == "hr":
+        return hr
+    if lang == "en":
+        return en
+    return ua
+
+def _norm_words(items: List[str]) -> List[str]:
+    out = []
+    for x in items or []:
+        s = str(x).strip().lower()
+        if not s:
+            continue
+        out.append(s)
+    return out
+
+def _contains_any(text: str, words: List[str]) -> bool:
+    t = (text or "").lower()
+    for w in words:
+        if w and w in t:
+            return True
+    return False
+
+def _qty(lang: str, a_ua: str, a_hr: str, a_en: str) -> str:
+    return _tr(lang, a_ua, a_hr, a_en)
+
+def _fmt_item(name: str, qty: str) -> str:
+    name = (name or "").strip()
+    qty = (qty or "").strip()
+    if not name:
+        return ""
+    return f"{name} — {qty}" if qty else name
+
+def _avoid_exclude(items: List[str], excl: List[str]) -> List[str]:
+    out = []
+    for it in items:
+        if not it:
+            continue
+        if _contains_any(it, excl):
+            continue
+        out.append(it)
+    return out
+
+def _pick_distinct(rng: random.Random, options: List[str], k: int) -> List[str]:
+    opts = [o for o in options if o]
+    rng.shuffle(opts)
+    return opts[:k]
+
+
+
+
+def dish_matches_filters(d: Dict[str, Any], f: Dict[str, Any]) -> bool:
+    tags = set(d.get("tags", []))
+    diet = f.get("diet", "any")
+
+    if diet != "any" and diet not in tags:
+        return False
+
+    for k in ("Gluten free", "Lactose free", "High protein", "Low calorie"):
+        if f.get(k) and k not in tags:
+            return False
+
+    max_time = int(f.get("Max time", 0) or 0)
+    if max_time and int(d.get("time_total_min", 10_000)) > max_time:
+        return False
+
+    excl = [x.strip().lower() for x in (f.get("exclude") or []) if str(x).strip()]
+    if excl:
+        blob = " ".join([str(x).lower() for x in d.get("ingredients", [])])
+        if any(w in blob for w in excl):
+            return False
+
+    return True
+
+
+
+
+def _build_title(lang: str, diet: str, f: Dict[str, Any], rng: random.Random) -> str:
+    quick = f.get("Max time", 0) and int(f.get("Max time", 0)) <= 15
+    if quick:
+        base = _tr(lang, "Швидка страва", "Brzo jelo", "Quick dish")
+    else:
+        base = _tr(lang, "Страва дня", "Jelo dana", "Dish of the day")
+
+    variants = [
+        _tr(lang, "боул", "bowl", "bowl"),
+        _tr(lang, "салат", "salata", "salad"),
+        _tr(lang, "сковорідка", "tava", "pan"),
+        _tr(lang, "паста", "tjestenina", "pasta"),
+        _tr(lang, "рис", "riža", "rice"),
+    ]
 
     
-    .balanceBlock{
-      padding:18px 16px;
-      border-radius: 22px;
-      border:1px solid var(--stroke);
-      background: linear-gradient(180deg, color-mix(in srgb, var(--card) 110%, transparent), var(--card2));
-      box-shadow: 0 18px 48px rgba(0,0,0,.25);
-      margin-bottom:14px;
-    }
-    .balanceK{
-      font-size:12px;
-      color:var(--muted);
-      margin-bottom:8px;
-    }
-    .balanceV{
-      font-size:38px;
-      font-weight:1000;
-      letter-spacing: .6px;
-      line-height:1;
-    }
-    .balanceMeta{
-      margin-top:10px;
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      align-items:center;
-      color:var(--muted);
-      font-size:12px;
-    }
-    .pill{
-      padding:6px 10px;
-      border-radius:999px;
-      border:1px solid var(--stroke);
-      background: color-mix(in srgb, var(--card) 130%, transparent);
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
+    if f.get("Gluten free"):
+        variants = [v for v in variants if v not in [_tr(lang, "паста", "tjestenina", "pasta")]]
+    
+    v = rng.choice(variants)
+    return f"{base}: {v}".strip()
+
+
+def _build_ingredients(lang: str, diet: str, f: Dict[str, Any], rng: random.Random) -> List[str]:
+    excl = _norm_words(f.get("exclude") or [])
+
+    def pick_from(options: List[str]) -> str:
+        opts = [o for o in options if (o and not _contains_any(o, excl))]
+        return rng.choice(opts) if opts else ""
+
+    proteins = {
+        "vegan": [_tr(lang,"тофу","tofu","tofu"), _tr(lang,"квасоля (консерва)","grah (konzerva)","beans (canned)"), _tr(lang,"нут (консерва)","slanutak (konzerva)","chickpeas (canned)"), _tr(lang,"сочевиця","leća","lentils")],
+        "vegetarian": [_tr(lang,"яйця","jaja","eggs"), _tr(lang,"сир","sir","cheese"), _tr(lang,"грецький йогурт","grčki jogurt","Greek yogurt")],
+        "pescatarian": [_tr(lang,"тунець (консерва)","tuna (konzerva)","tuna (canned)"), _tr(lang,"лосось","losos","salmon"), _tr(lang,"сардини (консерва)","srdele (konzerva)","sardines (canned)")],
+        "any": [_tr(lang,"куряче філе","pileći file","chicken breast"), _tr(lang,"індичка","puretina","turkey"), _tr(lang,"тунець (консерва)","tuna (konzerva)","tuna (canned)"), _tr(lang,"яйця","jaja","eggs"), _tr(lang,"тофу","tofu","tofu")],
     }
 
-    
-    .actionRow{
-      display:grid;
-      grid-template-columns: repeat(3, minmax(0,1fr));
-      gap:10px;
-      margin-top:14px;
-    }
-    .actionBtn{
-      border:1px solid var(--stroke);
-      background: color-mix(in srgb, var(--card) 120%, transparent);
-      color:var(--text);
-      border-radius:16px;
-      padding:12px 10px;
-      font-weight:800;
-      text-align:center;
-      cursor:pointer;
-      user-select:none;
-      transition: transform .08s ease, background .2s ease, border-color .2s ease;
-    }
-    .actionBtn:hover{ background: color-mix(in srgb, var(--card) 150%, transparent); }
-    .actionBtn:active{ transform: scale(.98); }
-    .actionIcon{font-size:18px; display:block; margin-bottom:6px;}
-    .actionSub{font-size:11px;color:var(--muted);font-weight:700;margin-top:2px}
+    carbs_gf = [_tr(lang,"рис","riža","rice"), _tr(lang,"картопля","krumpir","potato"), _tr(lang,"гречка","heljda","buckwheat"), _tr(lang,"кіноа","kvinoja","quinoa")]
+    carbs = carbs_gf + [_tr(lang,"паста","tjestenina","pasta"), _tr(lang,"тортилья","tortilja","tortilla"), _tr(lang,"хліб","kruh","bread")]
 
     
-    .list{
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      margin-top:12px;
-    }
-    .item{
-      border:1px solid var(--stroke);
-      border-radius:18px;
-      background: color-mix(in srgb, var(--card) 115%, transparent);
-      padding:12px 12px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      cursor:pointer;
-      user-select:none;
-      transition: background .2s ease;
-    }
-    .item:hover{ background: color-mix(in srgb, var(--card) 155%, transparent); }
-    .itemL{display:flex; align-items:center; gap:10px; min-width:0;}
-    .badge{
-      width:36px;height:36px;border-radius:14px;
-      border:1px solid var(--stroke);
-      display:grid;place-items:center;
-      background: radial-gradient(18px 18px at 30% 30%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 65%),
-                  color-mix(in srgb, var(--card) 140%, transparent);
-      flex:0 0 auto;
-    }
-    .itemText{min-width:0;}
-    .itemTitle{font-weight:900; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-    .itemDesc{font-size:12px; color:var(--muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-    .chev{color:var(--muted); font-weight:900;}
+    carb_pool = carbs_gf[:] if f.get("Gluten free") else carbs[:]
 
-    
-    .tab{display:none;}
-    .tab.active{display:block;}
+    veggies = [_tr(lang,"помідор","rajčica","tomato"), _tr(lang,"огірок","krastavac","cucumber"), _tr(lang,"перець","paprika","pepper"), _tr(lang,"шпинат","špinat","spinach"), _tr(lang,"морква","mrkva","carrot"), _tr(lang,"цибуля","luk","onion"), _tr(lang,"броколі","brokula","broccoli"), _tr(lang,"гриби","gljive","mushrooms"), _tr(lang,"кукурудза (консерва)","kukuruz (konzerva)","corn (canned)")]
 
-    
-    .dish{
-      margin-top:12px;
-      border:1px solid var(--stroke);
-      border-radius:20px;
-      background: color-mix(in srgb, var(--card) 120%, transparent);
-      padding:14px;
-    }
-    .dishName{font-size:18px; font-weight:1000; margin:0 0 8px 0;}
-    .chips{display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 0 0;}
-    .chip{
-      font-size:12px;
-      padding:6px 10px;
-      border-radius:999px;
-      border:1px solid var(--stroke);
-      background: color-mix(in srgb, var(--card) 145%, transparent);
-      color:var(--muted);
-    }
-    .chip.accent{
-      color:var(--text);
-      border-color: color-mix(in srgb, var(--accent) 45%, var(--stroke));
-      background: color-mix(in srgb, var(--accent) 14%, transparent);
-    }
-    .dishWhy{margin:10px 0 0 0; color:var(--muted); font-size:13px; line-height:1.45}
-
-    
-    .out{
-      margin-top:12px;
-      border:1px solid var(--stroke);
-      border-radius:20px;
-      background: color-mix(in srgb, var(--card) 115%, transparent);
-      padding:12px;
-    }
-    .outHead{display:flex; align-items:center; justify-content:space-between; gap:10px}
-    .outTitle{font-weight:950; font-size:13px}
-    pre{white-space:pre-wrap; margin:10px 0 0 0; font-size:13px; line-height:1.45}
+    sauces = [_tr(lang,"оливкова олія","maslinovo ulje","olive oil"), _tr(lang,"соєвий соус","soja umak","soy sauce"), _tr(lang,"томатний соус","umak od rajčice","tomato sauce"), _tr(lang,"лимонний сік","limunov sok","lemon juice")]
+    dairy_sauces = [_tr(lang,"йогуртовий соус","jogurt umak","yogurt sauce"), _tr(lang,"сметана/йогурт","vrhnje/jogurt","sour cream/yogurt")]
 
    
-    .formGrid{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:10px;
-      margin-top:10px;
-    }
-    .field label{
-      display:block;
-      font-size:12px;
-      color:var(--muted);
-      margin:0 0 6px 2px;
-    }
-    select,input{
-      width:100%;
-      padding:12px 12px;
-      border-radius:16px;
-      border:1px solid var(--stroke);
-      background: color-mix(in srgb, var(--card) 130%, transparent);
-      color:var(--text);
-      outline:none;
-    }
+    p_list = proteins.get(diet, proteins["any"])[:]
+    if f.get("Lactose free"):
+        p_list = [p for p in p_list if not _contains_any(p, ["сир","йогурт","cheese","yogurt","vrhnje"])]
+        sauce_pool = sauces[:]
+    else:
+        sauce_pool = sauces + dairy_sauces
+
+    prot = pick_from(p_list) or pick_from(proteins["any"])
+    carb = pick_from(carb_pool)
+    veg_pick = _pick_distinct(rng, _avoid_exclude(veggies, excl), 3)
+    sauce = pick_from(sauce_pool)
 
     
-    option{color:inherit}
+    protein_qty = _qty(lang, "120–180 г", "120–180 g", "120–180 g")
+    if f.get("High protein"):
+        protein_qty = _qty(lang, "180–250 г", "180–250 g", "180–250 g")
 
-    .checks{
-      display:flex;
-      gap:14px;
-      flex-wrap:wrap;
-      margin-top:12px;
-    }
-    .chk{display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px}
-    .chk input{width:18px;height:18px}
-
-    .btnRow{
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      margin-top:12px;
-    }
-    .btn{
-      border:1px solid var(--stroke);
-      background: color-mix(in srgb, var(--card) 135%, transparent);
-      color:var(--text);
-      border-radius:16px;
-      padding:12px 12px;
-      font-weight:900;
-      cursor:pointer;
-      user-select:none;
-      transition: transform .08s ease, background .2s ease;
-    }
-    .btn.primary{
-      border-color: color-mix(in srgb, var(--accent) 45%, var(--stroke));
-      background: linear-gradient(135deg,
-        color-mix(in srgb, var(--accent) 18%, transparent),
-        color-mix(in srgb, var(--accent2) 14%, transparent)
-      );
-    }
-    .btn:active{ transform: scale(.98); }
+    carb_qty = _qty(lang, "60–80 г (сух.)", "60–80 g (suho)", "60–80 g (dry)")
+    if f.get("Low calorie"):
+        carb_qty = _qty(lang, "40–60 г (сух.)", "40–60 g (suho)", "40–60 g (dry)")
 
     
-    .tabbar{
-      position:fixed;
-      left:0; right:0; bottom:0;
-      height:var(--tabH);
-      padding:10px 12px 14px;
-      background: color-mix(in srgb, var(--bg) 85%, transparent);
-      backdrop-filter: blur(14px);
-      border-top:1px solid var(--stroke);
-      display:flex;
-      justify-content:center;
-      z-index:50;
-    }
-    .tabbarInner{
-      width:min(760px, 100%);
-      display:grid;
-      grid-template-columns: repeat(4, minmax(0,1fr));
-      gap:8px;
-    }
-    .tabbtn{
-      border:1px solid transparent;
-      border-radius:18px;
-      background: transparent;
-      color:var(--muted);
-      padding:10px 8px;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      justify-content:center;
-      gap:4px;
-      cursor:pointer;
-      user-select:none;
-      transition: background .2s ease, color .2s ease, border-color .2s ease;
-    }
-    .tabbtn .ic{font-size:18px}
-    .tabbtn .lb{font-size:11px;font-weight:900}
-    .tabbtn.active{
-      background: color-mix(in srgb, var(--card) 150%, transparent);
-      border-color: var(--stroke);
-      color:var(--text);
-    }
+    items = []
+    items.append(_fmt_item(prot, protein_qty))
+    if carb:
+        items.append(_fmt_item(carb, carb_qty))
+    for v in veg_pick:
+        items.append(_fmt_item(v, _qty(lang, "1 шт", "1 kom", "1 pc")))
+    if sauce:
+        items.append(_fmt_item(sauce, _qty(lang, "1–2 ст. л.", "1–2 žlice", "1–2 tbsp")))
+    items.append(_fmt_item(_tr(lang,"сіль","sol","salt"), _qty(lang,"за смаком","po ukusu","to taste")))
+    items.append(_fmt_item(_tr(lang,"перець","papar","pepper"), _qty(lang,"за смаком","po ukusu","to taste")))
 
-    @media (max-width:520px){
-      .formGrid{grid-template-columns:1fr;}
-      .actionRow{grid-template-columns: repeat(3, minmax(0,1fr));}
-      .balanceV{font-size:34px}
-    }
-
-    .fade{animation:fade .16s ease-out}
-    @keyframes fade{from{opacity:.4;transform:translateY(2px)}to{opacity:1;transform:translateY(0)}}
-  </style>
-</head>
-
-<body>
-  <div class="wrap">
-    <div class="header">
-      <div>
-        <h1 class="title" id="uiTitle">Najjednostavniji recepti</h1>
-        <p class="sub" id="uiSub">Cook Today • daily dish • ingredients • steps • filters</p>
-      </div>
-      <div class="pill" id="statusPill">
-        <span>🔍</span><span id="statusText">Loading…</span>
-      </div>
-    </div>
+    return _avoid_exclude(items, excl)
 
     
-    <div class="tab active" id="tab_home">
-      <div class="balanceBlock fade">
-        <div class="balanceK" id="balK">Общий баланс</div>
-        <div class="balanceV" id="balV">—</div>
-        <div class="balanceMeta">
-          <span class="pill" id="meta1">🎁 Trial: —</span>
-          <span class="pill" id="meta2">🪙 Tokens: —</span>
-        </div>
+    proteins = {
+        "vegan": [
+            _tr(lang,"тофу","tofu","tofu"),
+            _tr(lang,"квасоля (консерва)","grah (konzerva)","beans (canned)"),
+            _tr(lang,"нут (консерва)","slanutak (konzerva)","chickpeas (canned)"),
+            _tr(lang,"сочевиця","leća","lentils"),
+        ],
+        "vegetarian": [
+            _tr(lang,"яйця","jaja","eggs"),
+            _tr(lang,"сир","sir","cheese"),
+            _tr(lang,"грецький йогурт","grčki jogurt","Greek yogurt"),
+        ],
+        "pescatarian": [
+            _tr(lang,"тунець (консерва)","tuna (konzerva)","tuna (canned)"),
+            _tr(lang,"лосось","losos","salmon"),
+            _tr(lang,"сардини (консерва)","srdele (konzerva)","sardines (canned)"),
+        ],
+        "any": [
+            _tr(lang,"куряче філе","pileći file","chicken breast"),
+            _tr(lang,"індичка","puretina","turkey"),
+            _tr(lang,"тунець (консерва)","tuna (konzerva)","tuna (canned)"),
+            _tr(lang,"яйця","jaja","eggs"),
+            _tr(lang,"тофу","tofu","tofu"),
+        ],
+    }
 
-        <div class="actionRow">
-          <div class="actionBtn" id="btnDaily">
-            <span class="actionIcon">⬇️</span>
-            <span id="tDaily">Страва дня</span>
-            <div class="actionSub" id="tDailySub">Оновлюється щодня</div>
-          </div>
-          <div class="actionBtn" id="btnRecipe">
-            <span class="actionIcon">⬆️</span>
-            <span id="tRecipe">Рецепт</span>
-            <div class="actionSub" id="tRecipeSub">Кроки приготування</div>
-          </div>
-          <div class="actionBtn" id="btnWallet">
-            <span class="actionIcon">↕️</span>
-            <span id="tWallet">Токени</span>
-            <div class="actionSub" id="tWalletSub">Баланс і бонуси</div>
-          </div>
-        </div>
-      </div>
+    carbs_gf = [
+        _tr(lang,"рис","riža","rice"),
+        _tr(lang,"картопля","krumpir","potato"),
+        _tr(lang,"гречка","heljda","buckwheat"),
+        _tr(lang,"кіноа","kvinoja","quinoa"),
+    ]
+    carbs = carbs_gf + [
+        _tr(lang,"паста","tjestenina","pasta"),
+        _tr(lang,"тортилья","tortilja","tortilla"),
+        _tr(lang,"хліб","kruh","bread"),
+    ]
 
-      <div class="card fade">
-        <div style="font-weight:950; font-size:14px" id="homeH">Сьогоднішня страва</div>
-        <div id="dishBox" class="dish" style="display:none"></div>
-        <div id="outBox" class="out" style="display:none"></div>
+    veggies = [
+        _tr(lang,"помідор","rajčica","tomato"),
+        _tr(lang,"огірок","krastavac","cucumber"),
+        _tr(lang,"перець","paprika","pepper"),
+        _tr(lang,"шпинат","špinat","spinach"),
+        _tr(lang,"морква","mrkva","carrot"),
+        _tr(lang,"цибуля","luk","onion"),
+        _tr(lang,"броколі","brokula","broccoli"),
+        _tr(lang,"гриби","gljive","mushrooms"),
+        _tr(lang,"кукурудза (консерва)","kukuruz (konzerva)","corn (canned)"),
+    ]
 
-        <div class="list">
-          <div class="item" id="goFilters">
-            <div class="itemL">
-              <div class="badge">⚙️</div>
-              <div class="itemText">
-                <div class="itemTitle" id="homeFiltersT">Налаштування / Фільтри</div>
-                <div class="itemDesc" id="homeFiltersD">Дієта, час, виключення інгредієнтів</div>
-              </div>
-            </div>
-            <div class="chev">›</div>
-          </div>
+    sauces = [
+        _tr(lang,"оливкова олія","maslinovo ulje","olive oil"),
+        _tr(lang,"соєвий соус","soja umak","soy sauce"),
+        _tr(lang,"томатний соус","umak od rajčice","tomato sauce"),
+        _tr(lang,"лимонний сік","limunov sok","lemon juice"),
+    ]
+    dairy_sauces = [
+        _tr(lang,"йогуртовий соус","jogurt umak","yogurt sauce"),
+        _tr(lang,"сметана/йогурт","vrhnje/jogurt","sour cream/yogurt"),
+    ]
 
-          <div class="item" id="goHow">
-            <div class="itemL">
-              <div class="badge">📌</div>
-              <div class="itemText">
-                <div class="itemTitle" id="homeHowT">Як це працює</div>
-                <div class="itemDesc" id="homeHowD">Trial 7 днів, потім токени + бонуси</div>
-              </div>
-            </div>
-            <div class="chev">›</div>
-          </div>
-        </div>
-      </div>
-    </div>
+    if diet not in ("vegetarian","vegan","pescatarian"):
+        diet = "any"
+
+   
+    p_list = proteins[diet][:]
+    if f.get("Lactose free"):
+        p_list = [p for p in p_list if not _contains_any(p, ["сир","йогурт","cheese","yogurt","sir","jogurt","vrhnje"])]
+        sauce_pool = sauces[:]
+    else:
+        sauce_pool = sauces + dairy_sauces
 
     
-    <div class="tab" id="tab_recipe">
-      <div class="card fade">
-        <div style="font-weight:950; font-size:14px" id="recH">Рецепт</div>
+    carb_pool = carbs_gf[:] if f.get("Gluten free") else carbs[:]
 
-        <div class="actionRow" style="margin-top:12px">
-          <div class="actionBtn" id="btnIng">
-            <span class="actionIcon">🧾</span>
-            <span id="tIng">Інгредієнти</span>
-            <div class="actionSub" id="tIngSub">Список продуктів</div>
-          </div>
-          <div class="actionBtn" id="btnSteps">
-            <span class="actionIcon">👨‍🍳</span>
-            <span id="tSteps">Кроки</span>
-            <div class="actionSub" id="tStepsSub">Покроково</div>
-          </div>
-          <div class="actionBtn" id="btnTime">
-            <span class="actionIcon">⏱</span>
-            <span id="tTime">Час</span>
-            <div class="actionSub" id="tTimeSub">Приблизно</div>
-          </div>
-        </div>
-
-        <div id="dishBox2" class="dish" style="display:none;margin-top:12px"></div>
-        <div id="outBox2" class="out" style="display:none;margin-top:12px"></div>
-      </div>
-    </div>
+    prot = pick_from(p_list) or pick_from(proteins["any"])
+    carb = pick_from(carb_pool)
+    veg_pick = _pick_distinct(rng, _avoid_exclude(veggies, excl), 3)
+    sauce = pick_from(sauce_pool)
 
     
-    <div class="tab" id="tab_filters">
-      <div class="card fade">
-        <div style="font-weight:950; font-size:14px" id="filH">Налаштування</div>
+    protein_qty = _qty(lang, "120–180 г", "120–180 g", "120–180 g")
+    if f.get("High protein"):
+        protein_qty = _qty(lang, "180–250 г", "180–250 g", "180–250 g")
 
-        <div class="formGrid">
-          <div class="field">
-            <label id="lLang">🌏 Мова</label>
-            <select id="lang">
-              <option value="uk">ua</option>
-              <option value="hr">hr</option>
-              <option value="en">en</option>
-            </select>
-          </div>
+    carb_qty = _qty(lang, "60–80 г (сух.)", "60–80 g (suho)", "60–80 g (dry)")
+    if f.get("Low calorie"):
+        carb_qty = _qty(lang, "40–60 г (сух.)", "40–60 g (suho)", "40–60 g (dry)")
 
-          <div class="field">
-            <label id="lDiet">Diet</label>
-            <select id="diet">
-              <option value="any">any</option>
-              <option value="vegetarian">vegetarian</option>
-              <option value="vegan">vegan</option>
-              <option value="pescatarian">pescatarian</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label id="lMax">Max time</label>
-            <select id="Max time">
-              <option value="0">∞</option>
-              <option value="15">15</option>
-              <option value="30">30</option>
-              <option value="45">45</option>
-              <option value="60">60</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label id="lExcl">Exclude (comma)</label>
-            <input id="exclude" placeholder="onion, garlic ..." />
-          </div>
-        </div>
-
-        <div class="checks">
-          <label class="chk"><input type="checkbox" id="Gluten free"> Gluten free</label>
-          <label class="chk"><input type="checkbox" id="Lactose free"> Lactose free</label>
-          <label class="chk"><input type="checkbox" id="High protein"> High protein</label>
-          <label class="chk"><input type="checkbox" id="Low calorie"> Low calorie</label>
-        </div>
-
-        <div class="btnRow">
-          <button class="btn primary" id="btnSave">💾 <span id="tSave">Save</span></button>
-          <button class="btn" id="btnRefresh">🔄 <span id="tRefresh">Refresh</span></button>
-        </div>
-      </div>
-    </div>
+    veg_qty = _qty(lang, "1 шт", "1 kom", "1 pc")
+    oil_qty = _qty(lang, "1 ст. л.", "1 žlica", "1 tbsp")
+    sauce_qty = _qty(lang, "1–2 ст. л.", "1–2 žlice", "1–2 tbsp")
 
     
-    <div class="tab" id="tab_wallet">
-      <div class="balanceBlock fade">
-        <div class="balanceK" id="wK">Баланс</div>
-        <div class="balanceV" id="wV">—</div>
-        <div class="balanceMeta">
-          <span class="pill" id="wMeta1">🎁 Trial: —</span>
-          <span class="pill" id="wMeta2">🪙 Tokens: —</span>
-        </div>
+    if _contains_any(prot, ["яйц", "egg", "jaja"]):
+        protein_qty = _qty(lang, "2–3 шт", "2–3 kom", "2–3 pcs")
+    if _contains_any(prot, ["тунець", "tuna", "сардин", "srdele", "sardines"]):
+        protein_qty = _qty(lang, "1 банка", "1 konzerva", "1 can")
+    if _contains_any(prot, ["квасол", "grah", "beans", "нут", "slanutak", "chickpeas"]):
+        protein_qty = _qty(lang, "1/2–1 банка", "1/2–1 konzerva", "1/2–1 can")
+    if _contains_any(carb, ["картоп", "krumpir", "potato"]):
+        carb_qty = _qty(lang, "2–3 шт", "2–3 kom", "2–3 pcs")
+    if _contains_any(carb, ["хліб", "kruh", "bread"]):
+        carb_qty = _qty(lang, "2 скибки", "2 kriške", "2 slices")
+    if _contains_any(carb, ["тортиль", "tortil"]):
+        carb_qty = _qty(lang, "1–2 шт", "1–2 kom", "1–2 pcs")
 
-        <div class="actionRow">
-          <div class="actionBtn" id="btnBuy">
-            <span class="actionIcon">⬇️</span>
-            <span id="tBuy">Купити</span>
-            <div class="actionSub" id="tBuySub">Токени / Stars</div>
-          </div>
-          <div class="actionBtn" id="btnBonus">
-            <span class="actionIcon">🎁</span>
-            <span id="tBonus">Бонус</span>
-            <div class="actionSub" id="tBonusSub">Щодня обмежено</div>
-          </div>
-          <div class="actionBtn" id="btnSupport">
-            <span class="actionIcon">💬</span>
-            <span id="tSupport">Підтримка</span>
-            <div class="actionSub" id="tSupportSub">Питання / баги</div>
-          </div>
-        </div>
-      </div>
+    items = []
+    items.append(_fmt_item(prot, protein_qty))
+    if carb:
+        items.append(_fmt_item(carb, carb_qty))
 
-      <div class="card fade">
-        <div style="font-weight:950; font-size:14px" id="wH">Гаманець</div>
+    for v in veg_pick:
+        vq = veg_qty
+        if _contains_any(v, ["шпинат","špinat","spinach"]):
+            vq = _qty(lang, "1 жменя", "1 šaka", "1 handful")
+        if _contains_any(v, ["брокол","brok","broccoli"]):
+            vq = _qty(lang, "150–200 г", "150–200 g", "150–200 g")
+        if _contains_any(v, ["гриб","gljiv","mushroom"]):
+            vq = _qty(lang, "150 г", "150 g", "150 g")
+        items.append(_fmt_item(v, vq))
 
-        <div class="list">
-          <div class="item" id="wRules">
-            <div class="itemL">
-              <div class="badge">📜</div>
-              <div class="itemText">
-                <div class="itemTitle" id="wRulesT">Правила токенів</div>
-                <div class="itemDesc" id="wRulesD">Trial 7 днів → потім токени + бонуси</div>
-              </div>
-            </div>
-            <div class="chev">›</div>
-          </div>
+    if sauce:
+        if _contains_any(sauce, ["оливкова", "maslinovo", "olive oil"]):
+            items.append(_fmt_item(sauce, oil_qty))
+        else:
+            items.append(_fmt_item(sauce, sauce_qty))
 
-          <div class="item" id="wPrices">
-            <div class="itemL">
-              <div class="badge">💳</div>
-              <div class="itemText">
-                <div class="itemTitle" id="wPricesT">Прайс</div>
-                <div class="itemDesc" id="wPricesD">Скільки коштує дія після trial</div>
-              </div>
-            </div>
-            <div class="chev">›</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+    items.append(_fmt_item(_tr(lang,"сіль","sol","salt"), _qty(lang,"за смаком","po ukusu","to taste")))
+    items.append(_fmt_item(_tr(lang,"перець","papar","pepper"), _qty(lang,"за смаком","po ukusu","to taste")))
 
- 
-  <div class="tabbar">
-    <div class="tabbarInner">
-      <div class="tabbtn active" data-tab="home"><div class="ic">🏠</div><div class="lb" id="tbHome">Головна</div></div>
-      <div class="tabbtn" data-tab="recipe"><div class="ic">📖</div><div class="lb" id="tbRecipe">Рецепт</div></div>
-      <div class="tabbtn" data-tab="filters"><div class="ic">⚙️</div><div class="lb" id="tbFilters">Фільтри</div></div>
-      <div class="tabbtn" data-tab="wallet"><div class="ic">👛</div><div class="lb" id="tbWallet">Гаманець</div></div>
-    </div>
-  </div>
+    items = _avoid_exclude(items, excl)
 
-<script>
-  const tg = window.Telegram?.WebApp;
-  tg?.ready();
-  tg?.expand();
+    out, seen = [], set()
+    for it in items:
+        key = it.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(it)
 
-  
-  function isDarkByScheme(){
-    return (tg?.colorScheme === "dark") || (window.matchMedia("(prefers-color-scheme: dark)").matches);
-  }
+    return out
 
-  function applyTheme(){
-    const p = tg?.themeParams || {};
-    const dark = isDarkByScheme();
 
-    const bg = p.bg_color || (dark ? "#0b0f14" : "#f7f8fc");
-    const text = p.text_color || (dark ? "#e9eef5" : "#0f172a");
+def _build_steps(lang: str, f: Dict[str, Any], rng: random.Random) -> List[str]:
+    steps = []
+
+    steps.append(_tr(
+        lang,
+        "1) Підготовка (2–4 хв): помий/наріж овочі. Якщо є консерва — злий рідину та промий.",
+        "1) Priprema (2–4 min): operi/nareži povrće. Ako je konzerva — ocijedi i isperi.",
+        "1) Prep (2–4 min): wash/chop veggies. If canned — drain and rinse."
+    ))
+
+    if f.get("Gluten free"):
+        steps.append(_tr(
+            lang,
+            "2) Перевір: використовуй лише безглютенову основу (рис/гречка/картопля/кіноа).",
+            "2) Provjeri: koristi bezglutensku bazu (riža/heljda/krumpir/kvinoja).",
+            "2) Check: use gluten-free base (rice/buckwheat/potato/quinoa)."
+        ))
+
+    if f.get("Lactose free"):
+        steps.append(_tr(
+            lang,
+            "3) Без лактози: уникай сиру/йогурту, заправляй олією, лимоном або соєвим соусом.",
+            "3) Bez laktoze: izbjegni sir/jogurt; začini uljem, limunom ili soja umakom.",
+            "3) Lactose-free: avoid dairy; dress with oil, lemon or soy sauce."
+        ))
+
+    cook_variant = rng.choice(["pan", "mix", "bowl"])
+    if cook_variant == "pan":
+        steps.append(_tr(
+            lang,
+            "4) Сковорідка (6–10 хв): розігрій на середньому вогні, додай 1 ст. л. олії. Обсмаж основний продукт 4–7 хв. Овочі додай наприкінці на 1–2 хв.",
+            "4) Tava (6–10 min): zagrij na srednje, dodaj 1 žlicu ulja. Prži glavni sastojak 4–7 min. Povrće dodaj zadnje 1–2 min.",
+            "4) Pan (6–10 min): heat on medium, add 1 tbsp oil. Cook main ingredient 4–7 min. Add veggies for the last 1–2 min."
+        ))
+    elif cook_variant == "mix":
+        steps.append(_tr(
+            lang,
+            "4) Швидке змішування (2–3 хв): у мисці змішай основу + білок + овочі. Додай соус, перемішай.",
+            "4) Brzo miješanje (2–3 min): u zdjeli spoji bazu + protein + povrće. Dodaj umak i promiješaj.",
+            "4) Quick mix (2–3 min): in a bowl combine base + protein + veggies. Add sauce and mix."
+        ))
+    else:
+        steps.append(_tr(
+            lang,
+            "4) Боул (3–5 хв): виклади основу, зверху білок і овочі. Заправ соусом.",
+            "4) Bowl (3–5 min): stavi bazu, zatim protein i povrće. Prelij umakom.",
+            "4) Bowl (3–5 min): add base, top with protein and veggies. Dress with sauce."
+        ))
+
+    steps.append(_tr(
+        lang,
+        "5) Смак (1 хв): посоли/поперчи. Якщо хочеш-додай лимонний сік або ще трішки соусу.",
+        "5) Okus (1 min): posoli/papri. Po želji dodaj limun ili još malo umaka.",
+        "5) Taste (1 min): add salt/pepper. Optionally add lemon or a bit more sauce."
+    ))
+
+    if f.get("High protein"):
+        steps.append(_tr(
+            lang,
+            "6) High protein порада: збільш порцію білка і зменш пасту/хліб.",
+            "6) High protein savjet: povećaj protein, smanji tjesteninu/kruh.",
+            "6) High protein tip: increase protein, reduce pasta/bread."
+        ))
+
+    if f.get("Low calorie"):
+        steps.append(_tr(
+            lang,
+            "7) Low calorie порада: більше овочів, менше олії (1 ч. л. замість 1 ст. л.).",
+            "7) Low calorie savjet: više povrća, manje ulja (1 žličica umjesto 1 žlice).",
+            "7) Low calorie tip: more veggies, less oil (1 tsp instead of 1 tbsp)."
+        ))
+
+    steps.append(_tr(
+        lang,
+        "Фініш: подавай одразу. Смачного 🙂",
+        "Finish: posluži odmah. Dobar tek 🙂",
+        "Finish: serve right away. Enjoy 🙂"
+    ))
+
+    return steps[:10]
+
+
+def _estimate_time(f: Dict[str, Any], rng: random.Random) -> int:
+    max_time = int(f.get("Max time", 0) or 0)
+    if max_time:
+        return max(8, min(max_time, rng.randint(8, max_time)))
+    return rng.randint(10, 25)
+    
+def _tags_for_filters(f: Dict[str, Any]) -> List[str]:
+    tags = ["quick"]
+    diet = f.get("diet", "any")
+    if diet in ("vegetarian","vegan","pescatarian"):
+        tags.append(diet)
+    for k in ("Gluten free","Lactose free","High protein","Low calorie"):
+        if f.get(k):
+            tags.append(k)
+    out = []
+    for t in tags:
+        if t in ALLOWED_TAGS and t not in out:
+            out.append(t)
+    return out
+
+def _sig_for_dish(title: str, ingredients: List[str], tags: List[str]) -> str:
+    base = (title or "") + "|" + "|".join(ingredients[:6]) + "|" + "|".join(tags)
+    return hashlib.sha256(base.encode("utf-8")).hexdigest()[:18]
+
+
+def generate_dish_for_user(u: Dict[str, Any], refresh_seed: Optional[str] = None) -> Dict[str, Any]:
+    lang = u.get("lang", "ua")
+    f = u.get("filters") or default_filters()
+    diet = f.get("diet", "any")
+
+   
+    seed_base = f"{u.get('created_at','')}-{today()}-{lang}-{json.dumps(f, sort_keys=True)}"
+    if refresh_seed:
+        seed_base += f"-{refresh_seed}"
+    rng = random.Random(hashlib.sha256(seed_base.encode("utf-8")).hexdigest())
 
     
-    const muted = dark ? "rgba(233,238,245,.72)" : "rgba(15,23,42,.58)";
+    last_sig = u.get("last_dish_sig", "")
+    for _ in range(6):
+        title = _build_title(lang, diet, f, rng)
+        ingredients = _build_ingredients(lang, diet, f, rng)
+        steps = _build_steps(lang, f, rng)
+        time_total_min = _estimate_time(f, rng)
+        tags = _tags_for_filters(f)
 
-    const accent = p.button_color || (dark ? "#4da3ff" : "#2b7cff");
+        why = _tr(
+            lang,
+            "Згенеровано під твої фільтри. Мінімум часу, максимум користі.",
+            "Generirano prema tvojim filterima. Malo vremena, puno koristi.",
+            "Generated for your filters. Minimal time, maximum value."
+        )
 
-    const stroke = dark ? "rgba(255,255,255,.10)" : "rgba(15,23,42,.10)";
-    const card = dark ? "rgba(255,255,255,.06)" : "rgba(15,23,42,.04)";
-    const card2 = dark ? "rgba(255,255,255,.04)" : "rgba(15,23,42,.03)";
-    const bg2 = dark ? "#070a0f" : "#eef1f8";
+        dish = {
+            "title": title,
+            "why": why,
+            "ingredients": ingredients,
+            "steps": steps,
+            "time_total_min": int(time_total_min),
+            "tags": tags,
+        }
 
-    document.documentElement.style.setProperty("--bg", bg);
-    document.documentElement.style.setProperty("--bg2", bg2);
-    document.documentElement.style.setProperty("--text", text);
-    document.documentElement.style.setProperty("--muted", muted);
-    document.documentElement.style.setProperty("--stroke", stroke);
-    document.documentElement.style.setProperty("--card", card);
-    document.documentElement.style.setProperty("--card2", card2);
-    document.documentElement.style.setProperty("--accent", accent);
-    document.documentElement.style.setProperty("--accent2", dark ? "#7c5cff" : "#6a5cff");
+       
+        if not dish_matches_filters(dish, f):
+            continue
 
-    try { tg?.MainButton?.setParams({ color: accent }); } catch(e){}
-  }
+        sig = _sig_for_dish(title, ingredients, tags)
+        if sig != last_sig:
+            u["last_dish_sig"] = sig
+            return dish
 
-  applyTheme();
-  try { tg?.onEvent?.("themeChanged", applyTheme); } catch(e){}
-
-  
-  const I18N = {
-    ua: {
-      uiTitle:"Najjednostavniji recepti",
-      uiSub:"Cook Today • страва дня • інгредієнти • рецепт • фільтри",
-      balanceK:"Общий баланс",
-      homeH:"Сьогоднішня страва",
-      daily:"Страва дня",
-      dailySub:"Оновлюється щодня",
-      recipe:"Рецепт",
-      recipeSub:"Кроки приготування",
-      wallet:"Токени",
-      walletSub:"Баланс і бонуси",
-      ing:"Інгредієнти",
-      steps:"Кроки",
-      time:"Час",
-      ingSub:"Список продуктів",
-      stepsSub:"Покроково",
-      timeSub:"Приблизно",
-      filtersT:"Налаштування / Фільтри",
-      filtersD:"Дієта, час, виключення інгредієнтів",
-      howT:"Як це працює",
-      howD:"Trial 7 днів, потім токени + бонуси",
-      tbHome:"Головна",
-      tbRecipe:"Рецепт",
-      tbFilters:"Фільтри",
-      tbWallet:"Гаманець",
-      filH:"Налаштування",
-      lLang:"🌏 Мова",
-      lDiet:"Diet",
-      lMax:"Max time",
-      lExcl:"Exclude (comma)",
-      save:"Save",
-      refresh:"Refresh",
-      wK:"Баланс",
-      wH:"Гаманець",
-      buy:"Купити",
-      buySub:"Токени / Stars",
-      bonus:"Бонус",
-      bonusSub:"Щодня обмежено",
-      support:"Підтримка",
-      supportSub:"Питання / баги",
-      rulesT:"Правила токенів",
-      rulesD:"Trial 7 днів → потім токени + бонуси",
-      pricesT:"Прайс",
-      pricesD:"Скільки коштує дія після trial",
-      outIng:"🧾 Інгредієнти",
-      outSteps:"👨‍🍳 Кроки",
-      outTime:"⏱ Час",
-      noDish:"Немає страви під ці фільтри",
-      noTokens:"Немає токенів 😕",
-
-      
-      popup_buy_title:"Купити токени",
-      popup_buy_msg:"Зараз це заглушка.\nДалі підключимо оплату через Telegram Stars.",
-      popup_bonus_title:"Бонус",
-      popup_bonus_msg:"Перевірив бонус ✅\nЯкщо сьогодні ще не було — він вже нарахований.",
-      popup_support_title:"Підтримка",
-      popup_support_msg:"Напиши автору бота на адрессу: hnatykbt2112@gmail.com",
-      popup_rules_title:"Правила токенів",
-      popup_rules_msg:"Trial 7 днів: все безкоштовно.\nПісля trial: дії коштують токени.\nЩодня: бонусні токени (з лімітом).",
-      popup_prices_title:"Прайс",
-      popup_prices_msg:"Приклад:\n• Страва дня: 1\n• Інгредієнти: 1\n• Кроки: 2\n• Час: 1\n"
-    },
-    hr: {
-      uiTitle:"Najjednostavniji recepti",
-      uiSub:"Cook Today • jelo dana • sastojci • recept • filteri",
-      balanceK:"Ukupni balans",
-      homeH:"Današnje jelo",
-      daily:"Jelo dana",
-      dailySub:"Mijenja se svaki dan",
-      recipe:"Recept",
-      recipeSub:"Koraci pripreme",
-      wallet:"Tokeni",
-      walletSub:"Stanje i bonusi",
-      ing:"Sastojci",
-      steps:"Koraci",
-      time:"Vrijeme",
-      ingSub:"Popis namirnica",
-      stepsSub:"Korak po korak",
-      timeSub:"Otprilike",
-      filtersT:"Postavke / Filteri",
-      filtersD:"Dijeta, vrijeme, izbacivanje sastojaka",
-      howT:"Kako radi",
-      howD:"Trial 7 dana, zatim tokeni + bonusi",
-      tbHome:"Početna",
-      tbRecipe:"Recept",
-      tbFilters:"Filteri",
-      tbWallet:"Novčanik",
-      filH:"Postavke",
-      lLang:"🌏 Jezik",
-      lDiet:"Dijeta",
-      lMax:"Max vrijeme",
-      lExcl:"Izbaci (zarez)",
-      save:"Spremi",
-      refresh:"Osvježi",
-      wK:"Stanje",
-      wH:"Novčanik",
-      buy:"Kupi",
-      buySub:"Tokeni / Stars",
-      bonus:"Bonus",
-      bonusSub:"Dnevno ograničeno",
-      support:"Podrška",
-      supportSub:"Pitanja / bugovi",
-      rulesT:"Pravila tokena",
-      rulesD:"Trial 7 dana → zatim tokeni + bonusi",
-      pricesT:"Cijene",
-      pricesD:"Koliko košta radnja nakon trial",
-      outIng:"🧾 Sastojci",
-      outSteps:"👨‍🍳 Koraci",
-      outTime:"⏱ Vrijeme",
-      noDish:"Nema jela za ove filtre",
-      noTokens:"Nema tokena 😕",
-
-      
-      popup_buy_title:"Kupi tokene",
-      popup_buy_msg:"Trenutno je ovo demo.\nKasnije povezujemo plaćanje preko Telegram Stars.",
-      popup_bonus_title:"Bonus",
-      popup_bonus_msg:"Provjerio bonus ✅\nAko danas još nije bio — već je dodan.",
-      popup_support_title:"Podrška",
-      popup_support_msg:"Piši autoru bota na adresu: hnatykbt2112@gmail.com",
-      popup_rules_title:"Pravila tokena",
-      popup_rules_msg:"Trial 7 dana: sve je besplatno.\nNakon triala: radnje troše tokene.\nSvaki dan: bonus tokeni (uz limit).",
-      popup_prices_title:"Cijene",
-      popup_prices_msg:"Primjer:\n• Jelo dana: 1\n• Sastojci: 1\n• Koraci: 2\n• Vrijeme: 1\n"
-    },
-    en: {
-      uiTitle:"Najjednostavniji recepti",
-      uiSub:"Cook Today • daily dish • ingredients • steps • filters",
-      balanceK:"Total balance",
-      homeH:"Today's dish",
-      daily:"Dish of the day",
-      dailySub:"Updates daily",
-      recipe:"Recipe",
-      recipeSub:"Cooking steps",
-      wallet:"Tokens",
-      walletSub:"Balance & bonuses",
-      ing:"Ingredients",
-      steps:"Steps",
-      time:"Time",
-      ingSub:"Grocery list",
-      stepsSub:"Step by step",
-      timeSub:"Approximate",
-      filtersT:"Settings / Filters",
-      filtersD:"Diet, time, ingredient exclusions",
-      howT:"How it works",
-      howD:"7-day trial, then tokens + bonuses",
-      tbHome:"Home",
-      tbRecipe:"Recipe",
-      tbFilters:"Filters",
-      tbWallet:"Wallet",
-      filH:"Settings",
-      lLang:"🌏 Language",
-      lDiet:"Diet",
-      lMax:"Max time",
-      lExcl:"Exclude (comma)",
-      save:"Save",
-      refresh:"Refresh",
-      wK:"Balance",
-      wH:"Wallet",
-      buy:"Buy",
-      buySub:"Tokens / Stars",
-      bonus:"Bonus",
-      bonusSub:"Daily limited",
-      support:"Support",
-      supportSub:"Questions / bugs",
-      rulesT:"Token rules",
-      rulesD:"7-day trial → tokens + bonuses",
-      pricesT:"Pricing",
-      pricesD:"Feature costs after trial",
-      outIng:"🧾 Ingredients",
-      outSteps:"👨‍🍳 Steps",
-      outTime:"⏱ Time",
-      noDish:"No dish matches these filters",
-      noTokens:"No tokens 😕",
-
-      
-      popup_buy_title:"Buy tokens",
-      popup_buy_msg:"This is a placeholder for now.\nNext we’ll connect Telegram Stars payments.",
-      popup_bonus_title:"Bonus",
-      popup_bonus_msg:"Checked bonus ✅\nIf you didn’t get it today yet — it’s already added.",
-      popup_support_title:"Support",
-      popup_support_msg:"Email the bot author: hnatykbt2112@gmail.com",
-      popup_rules_title:"Token rules",
-      popup_rules_msg:"7-day trial: everything is free.\nAfter trial: actions cost tokens.\nDaily: bonus tokens (with a limit).",
-      popup_prices_title:"Pricing",
-      popup_prices_msg:"Example:\n• Daily dish: 1\n• Ingredients: 1\n• Steps: 2\n• Time: 1\n"
-    }
-  };
-
-  let LANG = "ua";
-  let STATUS = null;
-  let DISH = null;
-
-  function setText(id, val){ const el=document.getElementById(id); if(el) el.textContent = val; }
-  function setUi(lang){
-    const t = I18N[lang] || I18N.uk;
-    setText("uiTitle", t.uiTitle);
-    setText("uiSub", t.uiSub);
-    setText("balK", t.balanceK);
-    setText("homeH", t.homeH);
-
-    setText("tDaily", t.daily);
-    setText("tDailySub", t.dailySub);
-    setText("tRecipe", t.recipe);
-    setText("tRecipeSub", t.recipeSub);
-    setText("tWallet", t.wallet);
-    setText("tWalletSub", t.walletSub);
-
-    setText("tIng", t.ing);
-    setText("tSteps", t.steps);
-    setText("tTime", t.time);
-    setText("tIngSub", t.ingSub);
-    setText("tStepsSub", t.stepsSub);
-    setText("tTimeSub", t.timeSub);
-
-    setText("homeFiltersT", t.filtersT);
-    setText("homeFiltersD", t.filtersD);
-    setText("homeHowT", t.howT);
-    setText("homeHowD", t.howD);
-
-    setText("tbHome", t.tbHome);
-    setText("tbRecipe", t.tbRecipe);
-    setText("tbFilters", t.tbFilters);
-    setText("tbWallet", t.tbWallet);
-
-    setText("filH", t.filH);
-    setText("lLang", t.lLang);
-    setText("lDiet", t.lDiet);
-    setText("lMax", t.lMax);
-    setText("lExcl", t.lExcl);
-    setText("tSave", t.save);
-    setText("tRefresh", t.refresh);
-
-    setText("wK", t.wK);
-    setText("wH", t.wH);
-    setText("tBuy", t.buy);
-    setText("tBuySub", t.buySub);
-    setText("tBonus", t.bonus);
-    setText("tBonusSub", t.bonusSub);
-    setText("tSupport", t.support);
-    setText("tSupportSub", t.supportSub);
-    setText("wRulesT", t.rulesT);
-    setText("wRulesD", t.rulesD);
-    setText("wPricesT", t.pricesT);
-    setText("wPricesD", t.pricesD);
-  }
-
-  
-  async function api(path, method="GET", body=null){
-    const initData = tg?.initData || "";
-    const res = await fetch(path, {
-      method,
-      headers: {"Content-Type":"application/json","X-Telegram-Init-Data": initData},
-      body: body ? JSON.stringify(body) : null
-    });
-    if(!res.ok) throw new Error(await res.text());
-    return res.json();
-  }
-
-  function haptic(kind="impact", style="light"){
-    try{
-      const h = tg?.HapticFeedback;
-      if(!h) return;
-      if(kind==="impact") h.impactOccurred(style);
-      if(kind==="success") h.notificationOccurred("success");
-      if(kind==="error") h.notificationOccurred("error");
-    }catch(e){}
-  }
-
-  function showPopup(title, message){
-    try{
-      tg?.showPopup?.({title, message, buttons:[{type:"ok"}]});
-    }catch(e){
-      alert(title + "\n" + message);
-    }
-  }
-
-  
-  function renderDish(dish){
-    DISH = dish;
-    const b1 = document.getElementById("dishBox");
-    const b2 = document.getElementById("dishBox2");
-    if(!dish){
-      b1.style.display = "none";
-      b2.style.display = "none";
-      return;
-    }
-
-    const tags = (dish.tags || []).slice(0,6);
-    const chips = [
-      `<span class="chip accent">⏱ ~${dish.time_total_min} min</span>`,
-      ...tags.map(t=>`<span class="chip">${t}</span>`)
-    ].join("");
-
-    const html = `
-      <div class="dishName">${dish.title}</div>
-      <div class="chips">${chips}</div>
-      <div class="dishWhy">${dish.why || ""}</div>
-    `;
-
-    b1.innerHTML = html;
-    b2.innerHTML = html;
-    b1.style.display = "block";
-    b2.style.display = "block";
-  }
-
-  function renderOut(title, data, target=1){
-    const box = (target===1) ? document.getElementById("outBox") : document.getElementById("outBox2");
-    if(!data){
-      box.style.display = "none";
-      return;
-    }
-
-    const body = Array.isArray(data) ? data.map((x,i)=>`${i+1}. ${x}`).join("\n") : String(data);
-    box.innerHTML = `
-      <div class="outHead"><div class="outTitle">${title}</div><div class="chip">${DISH ? DISH.title : "—"}</div></div>
-      <pre>${body}</pre>
-    `;
-    box.style.display = "block";
-  }
-
-  
-  function setStatusText(){
-    if(!STATUS) return;
-    const st = document.getElementById("statusText");
-    if(STATUS.trial){
-      st.textContent = `Trial: ${STATUS.trial_days_left} days`;
-    } else {
-      st.textContent = `Tokens: ${STATUS.tokens}`;
-    }
-  }
-
-  function renderWalletNumbers(){
-    if(!STATUS) return;
-
-    const trial = STATUS.trial;
-    const tokens = STATUS.tokens;
-
-    document.getElementById("balV").textContent = trial ? "TRIAL" : String(tokens);
-    document.getElementById("wV").textContent  = trial ? "TRIAL" : String(tokens);
-
-    document.getElementById("meta1").textContent = trial ? `🎁 Trial: ${STATUS.trial_days_left} days` : `🎁 Trial: 0 days`;
-    document.getElementById("meta2").textContent = `🪙 Tokens: ${tokens}`;
-
-    document.getElementById("wMeta1").textContent = trial ? `🎁 Trial: ${STATUS.trial_days_left} days` : `🎁 Trial: 0 days`;
-    document.getElementById("wMeta2").textContent = `🪙 Tokens: ${tokens}`;
-  }
-
-  async function refreshStatus(){
-    STATUS = await api("/api/status");
-    LANG = STATUS.lang || "ua";
-    setUi(LANG);
-    setStatusText();
-    renderWalletNumbers();
-
-    document.getElementById("lang").value = LANG;
-    const f = STATUS.filters || {};
-    document.getElementById("diet").value = f.diet ?? "any";
-    document.getElementById("Max time").value = String(f.max_time ?? 0);
-    document.getElementById("exclude").value = (f.exclude||[]).join(", ");
-    ["Gluten free","Lactose free","High protein","Low calorie"].forEach(k=>{
-      document.getElementById(k).checked = !!f[k];
-    });
-  }
-
-  
-  async function loadDaily(auto=false){
-    const t = I18N[LANG] || I18N.ua;
-    try{
-      const r = await api("/api/daily", "POST");
-      renderDish(r.dish);
-      renderOut("", null, 1);
-      renderOut("", null, 2);
-
-      if(!r.dish){
-        showPopup("Info", t.noDish);
-      }
-      haptic("success");
-      await refreshStatus();
-    }catch(e){
-      if(String(e.message).includes("NO_TOKENS")){
-        haptic("error");
-        showPopup("Oops", t.noTokens);
-      } else {
-        showPopup("Error", "Daily: " + e.message);
-      }
-      await refreshStatus();
-    }
-  }
-
-  async function loadAction(action){
-    const t = I18N[LANG] || I18N.ua;
-    try{
-      const r = await api("/api/action", "POST", {action});
-      if(action==="ingredients") renderOut(t.outIng, r.data, 2);
-      if(action==="steps") renderOut(t.outSteps, r.data, 2);
-      if(action==="time") renderOut(t.outTime, (r.data ?? 0) + " min", 2);
-      haptic("impact","light");
-      await refreshStatus();
-    }catch(e){
-      if(String(e.message).includes("NO_TOKENS")){
-        haptic("error");
-        showPopup("Oops", t.noTokens);
-      } else {
-        showPopup("Error", action + ": " + e.message);
-      }
-      await refreshStatus();
-    }
-  }
-
-
-  function setTab(name){
-    ["home","recipe","filters","wallet"].forEach(x=>{
-      document.getElementById("tab_"+x).classList.toggle("active", x===name);
-      document.querySelector(`.tabbtn[data-tab="${x}"]`).classList.toggle("active", x===name);
-    });
-    haptic("impact","light");
-  }
-
-  document.querySelectorAll(".tabbtn").forEach(btn=>{
-    btn.addEventListener("click", ()=> setTab(btn.dataset.tab));
-  });
-
-
-  document.getElementById("btnDaily").onclick = ()=> loadDaily(false);
-  document.getElementById("btnRecipe").onclick = ()=> setTab("recipe");
-  document.getElementById("btnWallet").onclick = ()=> setTab("wallet");
-
-  document.getElementById("btnIng").onclick = ()=> loadAction("ingredients");
-  document.getElementById("btnSteps").onclick = ()=> loadAction("steps");
-  document.getElementById("btnTime").onclick = ()=> loadAction("time");
-
-  document.getElementById("goFilters").onclick = ()=> setTab("filters");
-  document.getElementById("goHow").onclick = ()=>{
     
-    showPopup("Як працює", "🎁 Trial 7 днів: всі функції безкоштовні.\nПісля trial: дії списують токени.\nЩодня є бонус, але з лімітом.");
-  };
-
-  document.getElementById("btnSave").onclick = async ()=>{
-    const payload = {
-      diet: document.getElementById("diet").value,
-      max_time: parseInt(document.getElementById("Max time").value, 10),
-      gluten_free: document.getElementById("Gluten free").checked,
-      lactose_free: document.getElementById("Lactose free").checked,
-      high_protein: document.getElementById("High protein").checked,
-      low_calorie: document.getElementById("Low calorie").checked,
-      exclude: document.getElementById("exclude").value.split(",").map(s=>s.trim()).filter(Boolean)
-    };
-    await api("/api/filters", "POST", payload);
-    haptic("success");
-    await refreshStatus();
-    await loadDaily(true);
-  };
-
-  document.getElementById("btnRefresh").onclick = async ()=>{
-    await refreshStatus();
-    await loadDaily(true);
-  };
-
-  document.getElementById("lang").onchange = async ()=>{
-    const newLang = document.getElementById("lang").value;
-    await api("/api/lang","POST",{lang:newLang});
-    await refreshStatus();
-    await loadDaily(true);
-  };
-
-  
-  document.getElementById("btnBuy").onclick = ()=>{
-    const t = I18N[LANG] || I18N.ua;
-    showPopup(t.popup_buy_title, t.popup_buy_msg);
-  };
-
-  document.getElementById("btnBonus").onclick = async ()=>{
-    const t = I18N[LANG] || I18N.ua;
-    await refreshStatus();
-    haptic("success");
-    showPopup(t.popup_bonus_title, t.popup_bonus_msg);
-  };
-
-  document.getElementById("btnSupport").onclick = ()=>{
-    const t = I18N[LANG] || I18N.ua;
-    showPopup(t.popup_support_title, t.popup_support_msg);
-  };
-
-  document.getElementById("wRules").onclick = ()=>{
-    const t = I18N[LANG] || I18N.ua;
-    showPopup(t.popup_rules_title, t.popup_rules_msg);
-  };
-
-  document.getElementById("wPrices").onclick = ()=>{
-    const t = I18N[LANG] || I18N.ua;
-    showPopup(t.popup_prices_title, t.popup_prices_msg);
-  };
-
-  
-  (async ()=>{
-    try{
-      await refreshStatus();
-      await loadDaily(true);
-    }catch(e){
-      showPopup("Open inside Telegram", "Це Mini App. Відкрий через бот.\n" + e.message);
+    u["last_dish_sig"] = ""
+    return {
+        "title": _tr(lang, "Страва дня: демо", "Jelo dana: demo", "Dish of the day: demo"),
+        "why": _tr(lang, "Не вдалося підібрати під фільтри, спробуй змінити фільтри.", "Nije moguće po filtrima, promijeni filtre.", "Couldn't match filters, try changing filters."),
+        "ingredients": [_tr(lang,"вода — 200 мл","voda — 200 ml","water — 200 ml")],
+        "steps": [_tr(lang,"Спробуй інші фільтри.","Probaj druge filtre.","Try other filters.")],
+        "time_total_min": 5,
+        "tags": ["quick"],
     }
-  })();
-</script>
-</body>
-</html>
+
+
+
+
+def validate_init_data(init_data: str, bot_token: str, max_age_sec: int = 86400) -> int:
+    pairs = dict(parse_qsl(init_data, keep_blank_values=True))
+    recv_hash = pairs.pop("hash", None)
+    if not recv_hash:
+        raise HTTPException(401, "No hash")
+
+    data_check_string = "\n".join([f"{k}={pairs[k]}" for k in sorted(pairs.keys())])
+    secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
+    calc_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+    if calc_hash != recv_hash:
+        raise HTTPException(401, "Bad signature")
+
+    auth_date = int(pairs.get("auth_date", "0"))
+    if auth_date and (now().timestamp() - auth_date) > max_age_sec:
+        raise HTTPException(401, "InitData expired")
+
+    user_raw = pairs.get("user")
+    if not user_raw:
+        raise HTTPException(401, "No user")
+    user = json.loads(user_raw)
+    return int(user["id"])
+
+def uid_from_init(init_data: str) -> int:
+    if not init_data:
+        raise HTTPException(401, "Missing initData")
+    return validate_init_data(init_data, BOT_TOKEN)
+
+
+
+
+@app.get("/api/status")
+def api_status(x_telegram_init_data: str = Header(default="")):
+    
+    if not x_telegram_init_data:
+        return {
+            "lang": "ua",
+            "trial": True,
+            "trial_days_left": TRIAL_DAYS,
+            "tokens": 15,
+            "filters": default_filters(),
+            "demo": True
+        }
+
+    user_id = uid_from_init(x_telegram_init_data)
+    db = load_db()
+    u = get_user(db, user_id)
+    apply_bonus(u)
+    save_db(db)
+    return {
+        "lang": u["lang"],
+        "trial": is_trial(u),
+        "trial_days_left": trial_days_left(u),
+        "tokens": u["tokens"],
+        "filters": u["filters"],
+        "demo": False
+    }
+
+
+@app.post("/api/lang")
+def api_lang(payload: Dict[str, Any], x_telegram_init_data: str = Header(default="")):
+    user_id = uid_from_init(x_telegram_init_data)
+    lang = payload.get("lang", "ua")
+    if lang not in ("ua", "hr", "en"):
+        lang = "ua"
+    db = load_db()
+    u = get_user(db, user_id)
+    u["lang"] = lang
+    save_db(db)
+    return {"ok": True}
+
+
+@app.post("/api/filters")
+def api_filters(payload: Dict[str, Any], x_telegram_init_data: str = Header(default="")):
+    user_id = uid_from_init(x_telegram_init_data)
+    db = load_db()
+    u = get_user(db, user_id)
+
+    f = u.get("filters", default_filters())
+    for k in f.keys():
+        if k in payload:
+            f[k] = payload[k]
+    
+    if isinstance(f.get("exclude"), str):
+        f["exclude"] = [x.strip() for x in f["exclude"].split(",") if x.strip()]
+    u["filters"] = f
+
+    
+    u["last_dish_sig"] = ""
+    save_db(db)
+    return {"ok": True}
+
+
+@app.post("/api/daily")
+def api_daily(payload: Dict[str, Any] = None, x_telegram_init_data: str = Header(default="")):
+    
+    if not x_telegram_init_data:
+       
+        refresh_seed = None
+        if isinstance(payload, dict):
+            refresh_seed = payload.get("refresh_seed")
+        dish = {
+            "title": "Demo: Dish generator",
+            "why": "DEMO режим (відкрито не в Telegram). Відкрий Mini App через бота для персоналізації.",
+            "ingredients": ["2 eggs — 2 pcs", "salt — to taste", "olive oil — 1 tbsp"],
+            "steps": ["Prep 2–4 min", "Cook 6–10 min", "Serve"],
+            "time_total_min": 12,
+            "tags": ["quick", "High protein"]
+        }
+        return {"ok": True, "dish": dish, "demo": True}
+
+    user_id = uid_from_init(x_telegram_init_data)
+
+    
+    refresh_seed = None
+    if isinstance(payload, dict):
+        refresh_seed = payload.get("refresh_seed")
+
+    with LOCK:
+        db = load_db()
+        u = get_user(db, user_id)
+        apply_bonus(u)
+
+        if not is_trial(u):
+            if u.get("daily_paid") != today():
+                if not charge(u, "daily"):
+                    save_db(db)
+                    raise HTTPException(402, "NO_TOKENS")
+                u["daily_paid"] = today()
+
+        dish = generate_dish_for_user(u, refresh_seed=refresh_seed)
+        save_db(db)
+
+    return {"ok": True, "dish": dish, "demo": False}
+
+
+@app.post("/api/action")
+def api_action(payload: Dict[str, Any], x_telegram_init_data: str = Header(default="")):
+    user_id = uid_from_init(x_telegram_init_data)
+    action = payload.get("action")
+    if action not in ("ingredients", "steps", "time"):
+        raise HTTPException(400, "bad action")
+
+    db = load_db()
+    u = get_user(db, user_id)
+    apply_bonus(u)
+
+    if not charge(u, action):
+        save_db(db)
+        raise HTTPException(402, "NO_TOKENS")
+
+    
+    dish = generate_dish_for_user(u, refresh_seed=None)
+    save_db(db)
+
+    if not dish:
+        return {"ok": True, "data": None}
+    if action == "ingredients":
+        return {"ok": True, "data": dish.get("ingredients", [])}
+    if action == "steps":
+        return {"ok": True, "data": dish.get("steps", [])}
+    return {"ok": True, "data": dish.get("time_total_min", 0)}
