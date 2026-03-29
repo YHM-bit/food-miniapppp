@@ -97,23 +97,27 @@ def get_user(db: Dict[str, Any], uid: int) -> Dict[str, Any]:
     suid = str(uid)
     if suid not in db["users"]:
         created = now()
-        db["users"][suid] = {
-            "lang": "ua",
-            "tokens": 15,
-            "created_at": created.isoformat(),
-            "trial_until": (created + timedelta(days=TRIAL_DAYS)).isoformat(),
-            "last_bonus": "",
-            "filters": default_filters(),
-            "daily_paid": "",
-            "favorites": [],
-            "uploads": [],
-            "last_dish_sig": "",  
-        }
+       db["users"][suid] = {
+    "lang": "ua",
+    "tokens": 15,
+    "created_at": created.isoformat(),
+    "trial_until": (created + timedelta(days=TRIAL_DAYS)).isoformat(),
+    "last_bonus": "",
+    "filters": default_filters(),
+    "daily_paid": "",
+    "favorites": [],
+    "uploads": [],
+    "last_dish_sig": "",
+    "last_daily_dishes": [],
+    "selected_daily_index": 0,
+    }
     u = db["users"][suid]
     u.setdefault("favorites", [])
     u.setdefault("uploads", [])
     u.setdefault("daily_paid", "")
     u.setdefault("last_dish_sig", "")
+    u.setdefault("last_daily_dishes", [])
+    u.setdefault("selected_daily_index", 0)
     if "filters" not in u:
         u["filters"] = default_filters()
     return u
@@ -554,7 +558,80 @@ def _tags_for_filters(f: Dict[str, Any]) -> List[str]:
         if t in ALLOWED_TAGS and t not in out:
             out.append(t)
     return out
+def _fallback_dish(lang: str) -> Dict[str, Any]:
+    return {
+        "title": _tr(lang, "Страва дня: демо", "Jelo dana: demo", "Dish of the day: demo"),
+        "why": _tr(
+            lang,
+            "Не вдалося підібрати під фільтри, спробуй змінити фільтри.",
+            "Nije moguće po filtrima, promijeni filtre.",
+            "Couldn't match filters, try changing filters."
+        ),
+        "ingredients": [_tr(lang, "вода — 200 мл", "voda — 200 ml", "water — 200 ml")],
+        "steps": [_tr(lang, "Спробуй інші фільтри.", "Probaj druge filtre.", "Try other filters.")],
+        "time_total_min": 5,
+        "tags": ["quick"],
+    }
 
+
+def generate_dishes_for_user(
+    u: Dict[str, Any],
+    count: int = 3,
+    refresh_seed: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    lang = u.get("lang", "ua")
+    f = u.get("filters") or default_filters()
+    diet = f.get("diet", "any")
+
+    seed_base = f"{u.get('created_at','')}-{today()}-{lang}-{json.dumps(f, sort_keys=True)}"
+    if refresh_seed:
+        seed_base += f"-{refresh_seed}"
+
+    rng = random.Random(hashlib.sha256(seed_base.encode("utf-8")).hexdigest())
+
+    dishes: List[Dict[str, Any]] = []
+    seen_sigs = set()
+
+    for _ in range(max(18, count * 10)):
+        title = _build_title(lang, diet, f, rng)
+        ingredients = _build_ingredients(lang, diet, f, rng)
+        steps = _build_steps(lang, f, rng)
+        time_total_min = _estimate_time(f, rng)
+        tags = _tags_for_filters(f)
+
+        why = _tr(
+            lang,
+            "Згенеровано під твої фільтри. Мінімум часу, максимум користі.",
+            "Generirano prema tvojim filterima. Malo vremena, puno koristi.",
+            "Generated for your filters. Minimal time, maximum value."
+        )
+
+        dish = {
+            "title": title,
+            "why": why,
+            "ingredients": ingredients,
+            "steps": steps,
+            "time_total_min": int(time_total_min),
+            "tags": tags,
+        }
+
+        if not dish_matches_filters(dish, f):
+            continue
+
+        sig = _sig_for_dish(title, ingredients, tags)
+        if sig in seen_sigs:
+            continue
+
+        seen_sigs.add(sig)
+        dishes.append(dish)
+
+        if len(dishes) >= count:
+            break
+
+    if not dishes:
+        dishes = [_fallback_dish(lang)]
+
+    return dishes
 def _sig_for_dish(title: str, ingredients: List[str], tags: List[str]) -> str:
     base = (title or "") + "|" + "|".join(ingredients[:6]) + "|" + "|".join(tags)
     return hashlib.sha256(base.encode("utf-8")).hexdigest()[:18]
@@ -713,25 +790,43 @@ def api_filters(payload: Dict[str, Any], x_telegram_init_data: str = Header(defa
 
 @app.post("/api/daily")
 def api_daily(payload: Dict[str, Any] = None, x_telegram_init_data: str = Header(default="")):
-    
     if not x_telegram_init_data:
-       
-        refresh_seed = None
-        if isinstance(payload, dict):
-            refresh_seed = payload.get("refresh_seed")
-        dish = {
-            "title": "Demo: Dish generator",
-            "why": "DEMO режим (відкрито не в Telegram). Відкрий Mini App через бота для персоналізації.",
-            "ingredients": ["2 eggs — 2 pcs", "salt — to taste", "olive oil — 1 tbsp"],
-            "steps": ["Prep 2–4 min", "Cook 6–10 min", "Serve"],
-            "time_total_min": 12,
-            "tags": ["quick", "High protein"]
+        demo_dishes = [
+            {
+                "title": "Demo: Omelette",
+                "why": "Demo mode outside Telegram.",
+                "ingredients": ["2 eggs — 2 pcs", "salt — to taste", "olive oil — 1 tbsp"],
+                "steps": ["Prep 2–4 min", "Cook 6–10 min", "Serve"],
+                "time_total_min": 12,
+                "tags": ["quick", "High protein"]
+            },
+            {
+                "title": "Demo: Rice bowl",
+                "why": "Demo mode outside Telegram.",
+                "ingredients": ["rice — 80 g", "tomato — 1 pc", "olive oil — 1 tbsp"],
+                "steps": ["Cook rice", "Cut vegetables", "Mix and serve"],
+                "time_total_min": 15,
+                "tags": ["quick"]
+            },
+            {
+                "title": "Demo: Salad",
+                "why": "Demo mode outside Telegram.",
+                "ingredients": ["cucumber — 1 pc", "tomato — 1 pc", "lemon juice — 1 tbsp"],
+                "steps": ["Cut vegetables", "Add dressing", "Serve"],
+                "time_total_min": 10,
+                "tags": ["quick", "Low calorie"]
+            },
+        ]
+        return {
+            "ok": True,
+            "dishes": demo_dishes,
+            "dish": demo_dishes[0],
+            "selected_index": 0,
+            "demo": True
         }
-        return {"ok": True, "dish": dish, "demo": True}
 
     user_id = uid_from_init(x_telegram_init_data)
 
-    
     refresh_seed = None
     if isinstance(payload, dict):
         refresh_seed = payload.get("refresh_seed")
@@ -748,16 +843,30 @@ def api_daily(payload: Dict[str, Any] = None, x_telegram_init_data: str = Header
                     raise HTTPException(402, "NO_TOKENS")
                 u["daily_paid"] = today()
 
-        dish = generate_dish_for_user(u, refresh_seed=refresh_seed)
+        dishes = generate_dishes_for_user(u, count=3, refresh_seed=refresh_seed)
+
+        u["last_daily_dishes"] = dishes
+        u["selected_daily_index"] = 0
+
+        first = dishes[0]
+        u["last_dish_sig"] = _sig_for_dish(first["title"], first["ingredients"], first["tags"])
+
         save_db(db)
 
-    return {"ok": True, "dish": dish, "demo": False}
+    return {
+        "ok": True,
+        "dishes": dishes,
+        "dish": dishes[0],
+        "selected_index": 0,
+        "demo": False
+    }
 
 
 @app.post("/api/action")
 def api_action(payload: Dict[str, Any], x_telegram_init_data: str = Header(default="")):
     user_id = uid_from_init(x_telegram_init_data)
     action = payload.get("action")
+
     if action not in ("ingredients", "steps", "time"):
         raise HTTPException(400, "bad action")
 
@@ -769,12 +878,25 @@ def api_action(payload: Dict[str, Any], x_telegram_init_data: str = Header(defau
         save_db(db)
         raise HTTPException(402, "NO_TOKENS")
 
-    
-    dish = generate_dish_for_user(u, refresh_seed=None)
+    dishes = u.get("last_daily_dishes") or []
+    if not dishes:
+        dishes = generate_dishes_for_user(u, count=3)
+        u["last_daily_dishes"] = dishes
+
+    try:
+        index = int(payload.get("index", u.get("selected_daily_index", 0)))
+    except Exception:
+        index = int(u.get("selected_daily_index", 0))
+
+    if index < 0 or index >= len(dishes):
+        index = 0
+
+    dish = dishes[index]
+    u["selected_daily_index"] = index
+    u["last_dish_sig"] = _sig_for_dish(dish["title"], dish["ingredients"], dish["tags"])
+
     save_db(db)
 
-    if not dish:
-        return {"ok": True, "data": None}
     if action == "ingredients":
         return {"ok": True, "data": dish.get("ingredients", [])}
     if action == "steps":
