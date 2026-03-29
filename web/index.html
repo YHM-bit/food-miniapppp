@@ -786,6 +786,10 @@
   let LANG = "ua";
   let STATUS = null;
   let DISH = null;
+  function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+  }
 
   function setUi(lang){
   const t = I18N[lang] || I18N.ua;
