@@ -426,60 +426,60 @@
     </div>
 
 
-    <div class="tab" id="tab_filters">
-      <div class="card fade">
-        <div style="font-weight:950; font-size:14px" id="filH">Налаштування</div>
+   <div class="tab" id="tab_filters">
+  <div class="card fade">
+    <div style="font-weight:950; font-size:14px" id="filH">Налаштування</div>
 
-        <div class="formGrid">
-          <div class="field">
-            <label id="lLang">🌏 Мова</label>
-            <select id="lang">
-              <option value="uk">ua</option>
-              <option value="hr">hr</option>
-              <option value="en">en</option>
-            </select>
-          </div>
+    <div class="formGrid">
+      <div class="field">
+        <label id="lLang">🌏 Мова</label>
+        <select id="lang">
+          <option value="ua">Українська</option>
+          <option value="hr">Hrvatski</option>
+          <option value="en">English</option>
+        </select>
+      </div>
 
-          <div class="field">
-            <label id="lDiet">Diet</label>
-            <select id="diet">
-              <option value="any">any</option>
-              <option value="vegetarian">vegetarian</option>
-              <option value="vegan">vegan</option>
-              <option value="pescatarian">pescatarian</option>
-            </select>
-          </div>
+      <div class="field">
+        <label id="lDiet">Diet</label>
+        <select id="diet">
+          <option value="any">any</option>
+          <option value="vegetarian">vegetarian</option>
+          <option value="vegan">vegan</option>
+          <option value="pescatarian">pescatarian</option>
+        </select>
+      </div>
 
-          <div class="field">
-            <label id="lMax">Max time</label>
-            <select id="Max time">
-              <option value="0">∞</option>
-              <option value="15">15</option>
-              <option value="30">30</option>
-              <option value="45">45</option>
-              <option value="60">60</option>
-            </select>
-          </div>
+      <div class="field">
+        <label id="lMax">Max time</label>
+        <select id="max_time">
+          <option value="0">∞</option>
+          <option value="15">15</option>
+          <option value="30">30</option>
+          <option value="45">45</option>
+          <option value="60">60</option>
+        </select>
+      </div>
 
-          <div class="field">
-            <label id="lExcl">Exclude (comma)</label>
-            <input id="exclude" placeholder="onion, garlic ..." />
-          </div>
-        </div>
-
-        <div class="checks">
-          <label class="chk"><input type="checkbox" id="Gluten free"> Gluten free</label>
-          <label class="chk"><input type="checkbox" id="Lactose free"> Lactose free</label>
-          <label class="chk"><input type="checkbox" id="High protein"> High protein</label>
-          <label class="chk"><input type="checkbox" id="Low calorie"> Low calorie</label>
-        </div>
-
-        <div class="btnRow">
-          <button class="btn primary" id="btnSave">💾 <span id="tSave">Save</span></button>
-          <button class="btn" id="btnRefresh">🔄 <span id="tRefresh">Refresh</span></button>
-        </div>
+      <div class="field">
+        <label id="lExcl">Exclude (comma)</label>
+        <input id="exclude" placeholder="onion, garlic ..." />
       </div>
     </div>
+
+    <div class="checks">
+      <label class="chk"><input type="checkbox" id="gluten_free"> Gluten free</label>
+      <label class="chk"><input type="checkbox" id="lactose_free"> Lactose free</label>
+      <label class="chk"><input type="checkbox" id="high_protein"> High protein</label>
+      <label class="chk"><input type="checkbox" id="low_calorie"> Low calorie</label>
+    </div>
+
+    <div class="btnRow">
+      <button class="btn primary" id="btnSave">💾 <span id="tSave">Save</span></button>
+      <button class="btn" id="btnRefresh">🔄 <span id="tRefresh">Refresh</span></button>
+    </div>
+  </div>
+</div>
 
 
     <div class="tab" id="tab_wallet">
@@ -787,59 +787,66 @@
   let STATUS = null;
   let DISH = null;
 
-  function setText(id, val){ const el=document.getElementById(id); if(el) el.textContent = val; }
   function setUi(lang){
-    const t = I18N[lang] || I18N.uk;
-    setText("uiTitle", t.uiTitle);
-    setText("uiSub", t.uiSub);
-    setText("balK", t.balanceK);
-    setText("homeH", t.homeH);
+  const t = I18N[lang] || I18N.ua;
 
-    setText("tDaily", t.daily);
-    setText("tDailySub", t.dailySub);
-    setText("tRecipe", t.recipe);
-    setText("tRecipeSub", t.recipeSub);
-    setText("tWallet", t.wallet);
-    setText("tWalletSub", t.walletSub);
+  setText("uiTitle", t.uiTitle);
+  setText("uiSub", t.uiSub);
+  setText("balK", t.balanceK);
+  setText("homeH", t.homeH);
 
-    setText("tIng", t.ing);
-    setText("tSteps", t.steps);
-    setText("tTime", t.time);
-    setText("tIngSub", t.ingSub);
-    setText("tStepsSub", t.stepsSub);
-    setText("tTimeSub", t.timeSub);
+  setText("tDaily", t.daily);
+  setText("tDailySub", t.dailySub);
+  setText("tRecipe", t.recipe);
+  setText("tRecipeSub", t.recipeSub);
+  setText("tWallet", t.wallet);
+  setText("tWalletSub", t.walletSub);
 
-    setText("homeFiltersT", t.filtersT);
-    setText("homeFiltersD", t.filtersD);
-    setText("homeHowT", t.howT);
-    setText("homeHowD", t.howD);
+  setText("tIng", t.ing);
+  setText("tSteps", t.steps);
+  setText("tTime", t.time);
+  setText("tIngSub", t.ingSub);
+  setText("tStepsSub", t.stepsSub);
+  setText("tTimeSub", t.timeSub);
 
-    setText("tbHome", t.tbHome);
-    setText("tbRecipe", t.tbRecipe);
-    setText("tbFilters", t.tbFilters);
-    setText("tbWallet", t.tbWallet);
+  setText("homeFiltersT", t.filtersT);
+  setText("homeFiltersD", t.filtersD);
+  setText("homeHowT", t.howT);
+  setText("homeHowD", t.howD);
 
-    setText("filH", t.filH);
-    setText("lLang", t.lLang);
-    setText("lDiet", t.lDiet);
-    setText("lMax", t.lMax);
-    setText("lExcl", t.lExcl);
-    setText("tSave", t.save);
-    setText("tRefresh", t.refresh);
+  setText("tbHome", t.tbHome);
+  setText("tbRecipe", t.tbRecipe);
+  setText("tbFilters", t.tbFilters);
+  setText("tbWallet", t.tbWallet);
 
-    setText("wK", t.wK);
-    setText("wH", t.wH);
-    setText("tBuy", t.buy);
-    setText("tBuySub", t.buySub);
-    setText("tBonus", t.bonus);
-    setText("tBonusSub", t.bonusSub);
-    setText("tSupport", t.support);
-    setText("tSupportSub", t.supportSub);
-    setText("wRulesT", t.rulesT);
-    setText("wRulesD", t.rulesD);
-    setText("wPricesT", t.pricesT);
-    setText("wPricesD", t.pricesD);
+  setText("filH", t.filH);
+  setText("lLang", t.lLang);
+  setText("lDiet", t.lDiet);
+  setText("lMax", t.lMax);
+  setText("lExcl", t.lExcl);
+  setText("tSave", t.save);
+  setText("tRefresh", t.refresh);
+
+  setText("wK", t.wK);
+  setText("wH", t.wH);
+  setText("tBuy", t.buy);
+  setText("tBuySub", t.buySub);
+  setText("tBonus", t.bonus);
+  setText("tBonusSub", t.bonusSub);
+  setText("tSupport", t.support);
+  setText("tSupportSub", t.supportSub);
+  setText("wRulesT", t.rulesT);
+  setText("wRulesD", t.rulesD);
+  setText("wPricesT", t.pricesT);
+  setText("wPricesD", t.pricesD);
+
+  const excludeInput = document.getElementById("exclude");
+  if (excludeInput) {
+    if (lang === "hr") excludeInput.placeholder = "luk, češnjak ...";
+    else if (lang === "en") excludeInput.placeholder = "onion, garlic ...";
+    else excludeInput.placeholder = "цибуля, часник ...";
   }
+}
 
 
   async function api(path, method="GET", body=null){
@@ -943,21 +950,27 @@
   }
 
   async function refreshStatus(){
-    STATUS = await api("/api/status");
-    LANG = STATUS.lang || "ua";
-    setUi(LANG);
-    setStatusText();
-    renderWalletNumbers();
+  STATUS = await api("/api/status");
+  LANG = STATUS.lang || "ua";
 
-    document.getElementById("lang").value = LANG;
-    const f = STATUS.filters || {};
-    document.getElementById("diet").value = f.diet ?? "any";
-    document.getElementById("Max time").value = String(f.max_time ?? 0);
-    document.getElementById("exclude").value = (f.exclude||[]).join(", ");
-    ["Gluten free","Lactose free","High protein","Low calorie"].forEach(k=>{
-      document.getElementById(k).checked = !!f[k];
-    });
-  }
+  setUi(LANG);
+  setStatusText();
+  renderWalletNumbers();
+
+  document.getElementById("lang").value =
+    ["ua", "hr", "en"].includes(LANG) ? LANG : "ua";
+
+  const f = STATUS.filters || {};
+
+  document.getElementById("diet").value = f.diet ?? "any";
+  document.getElementById("max_time").value = String(f["Max time"] ?? 0);
+  document.getElementById("exclude").value = Array.isArray(f.exclude) ? f.exclude.join(", ") : "";
+
+  document.getElementById("gluten_free").checked = !!f["Gluten free"];
+  document.getElementById("lactose_free").checked = !!f["Lactose free"];
+  document.getElementById("high_protein").checked = !!f["High protein"];
+  document.getElementById("low_calorie").checked = !!f["Low calorie"];
+}
 
 
   async function loadDaily(auto=false){
@@ -1032,21 +1045,25 @@
     showPopup("Як працює", "🎁 Trial 7 днів: всі функції безкоштовні.\nПісля trial: дії списують токени.\nЩодня є бонус, але з лімітом.");
   };
 
-  document.getElementById("btnSave").onclick = async ()=>{
-    const payload = {
-      diet: document.getElementById("diet").value,
-      max_time: parseInt(document.getElementById("Max time").value, 10),
-      gluten_free: document.getElementById("Gluten free").checked,
-      lactose_free: document.getElementById("Lactose free").checked,
-      high_protein: document.getElementById("High protein").checked,
-      low_calorie: document.getElementById("Low calorie").checked,
-      exclude: document.getElementById("exclude").value.split(",").map(s=>s.trim()).filter(Boolean)
-    };
-    await api("/api/filters", "POST", payload);
-    haptic("success");
-    await refreshStatus();
-    await loadDaily(true);
+ document.getElementById("btnSave").onclick = async ()=>{
+  const payload = {
+    diet: document.getElementById("diet").value,
+    "Max time": parseInt(document.getElementById("max_time").value, 10) || 0,
+    "Gluten free": document.getElementById("gluten_free").checked,
+    "Lactose free": document.getElementById("lactose_free").checked,
+    "High protein": document.getElementById("high_protein").checked,
+    "Low calorie": document.getElementById("low_calorie").checked,
+    exclude: document.getElementById("exclude").value
+      .split(",")
+      .map(s => s.trim())
+      .filter(Boolean)
   };
+
+  await api("/api/filters", "POST", payload);
+  haptic("success");
+  await refreshStatus();
+  await loadDaily(true);
+};
 
   document.getElementById("btnRefresh").onclick = async ()=>{
     await refreshStatus();
@@ -1084,7 +1101,6 @@
   };
 
   document.getElementById("wPrices").onclick = ()=>{
-    const t = I18N[LANG] || I18N.uk;
     const t = I18N[LANG] || I18N.ua;
     showPopup(t.popup_prices_title, t.popup_prices_msg);
   };
