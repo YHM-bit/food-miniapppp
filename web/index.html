@@ -322,6 +322,51 @@
 
     .fade{animation:fade .16s ease-out}
     @keyframes fade{from{opacity:.4;transform:translateY(2px)}to{opacity:1;transform:translateY(0)}}
+    .dishList{
+      display:grid;
+      gap:10px;
+      margin-top:12px;
+    }
+
+  .dishCard{
+    border:1px solid var(--stroke);
+    border-radius:18px;
+    background: color-mix(in srgb, var(--card) 115%, transparent);
+    padding:12px;
+    cursor:pointer;
+    transition: background .2s ease, border-color .2s ease, transform .08s ease;
+  }
+
+  .dishCard:hover{
+    background: color-mix(in srgb, var(--card) 150%, transparent);
+  }
+
+  .dishCard:active{
+    transform: scale(.99);
+  }
+
+  .dishCard.active{
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--stroke));
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+
+  .dishCardTitle{
+    font-weight:900;
+    font-size:15px;
+    margin-bottom:6px;
+  }
+
+  .dishCardMeta{
+    font-size:12px;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+
+  .dishCardWhy{
+    font-size:12px;
+    color:var(--muted);
+    line-height:1.4;
+  }
   </style>
 </head>
 
@@ -369,6 +414,7 @@
       <div class="card fade">
         <div style="font-weight:950; font-size:14px" id="homeH">Сьогоднішня страва</div>
         <div id="dishBox" class="dish" style="display:none"></div>
+        <div id="dishList" class="dishList" style="display:none"></div>
         <div id="outBox" class="out" style="display:none"></div>
 
         <div class="list">
@@ -786,6 +832,8 @@
   let LANG = "ua";
   let STATUS = null;
   let DISH = null;
+  let DISHES = [];
+  let SELECTED_DISH_INDEX = 0;
   function setText(id, val) {
   const el = document.getElementById(id);
   if (el) el.textContent = val;
@@ -910,6 +958,47 @@
     b1.style.display = "block";
     b2.style.display = "block";
   }
+  function renderDishList(dishes){
+  DISHES = Array.isArray(dishes) ? dishes : [];
+
+  const box = document.getElementById("dishList");
+  if (!box) return;
+
+  if (!DISHES.length){
+    box.innerHTML = "";
+    box.style.display = "none";
+    return;
+  }
+
+  box.innerHTML = DISHES.map((dish, idx) => `
+    <div class="dishCard ${idx === SELECTED_DISH_INDEX ? "active" : ""}" data-idx="${idx}">
+      <div class="dishCardTitle">${dish.title}</div>
+      <div class="dishCardMeta">⏱ ${dish.time_total_min} min</div>
+      <div class="dishCardWhy">${dish.why || ""}</div>
+    </div>
+  `).join("");
+
+  box.style.display = "grid";
+
+  box.querySelectorAll(".dishCard").forEach(card => {
+    card.onclick = async () => {
+      const idx = Number(card.dataset.idx || 0);
+      await selectDish(idx);
+    };
+  });
+}
+
+async function selectDish(index){
+  const r = await api("/api/select_dish", "POST", { index });
+
+  SELECTED_DISH_INDEX = r.selected_index ?? index;
+  DISH = r.dish || null;
+
+  renderDish(DISH);
+  renderDishList(DISHES);
+  renderOut("", null, 1);
+  renderOut("", null, 2);
+}
 
   function renderOut(title, data, target=1){
     const box = (target===1) ? document.getElementById("outBox") : document.getElementById("outBox2");
@@ -977,50 +1066,61 @@
 }
 
 
-  async function loadDaily(auto=false){
-    const t = I18N[LANG] || I18N.ua;
-    try{
-      const r = await api("/api/daily", "POST");
-      renderDish(r.dish);
-      renderOut("", null, 1);
-      renderOut("", null, 2);
+ async function loadDaily(auto=false){
+  const t = I18N[LANG] || I18N.ua;
+  try{
+    const r = await api("/api/daily", "POST");
 
-      if(!r.dish){
-        showPopup("Info", t.noDish);
-      }
-      haptic("success");
-      await refreshStatus();
-    }catch(e){
-      if(String(e.message).includes("NO_TOKENS")){
-        haptic("error");
-        showPopup("Oops", t.noTokens);
-      } else {
-        showPopup("Error", "Daily: " + e.message);
-      }
-      await refreshStatus();
+    DISHES = Array.isArray(r.dishes) ? r.dishes : (r.dish ? [r.dish] : []);
+    SELECTED_DISH_INDEX = r.selected_index ?? 0;
+    DISH = r.dish || DISHES[0] || null;
+
+    renderDishList(DISHES);
+    renderDish(DISH);
+    renderOut("", null, 1);
+    renderOut("", null, 2);
+
+    if(!DISH){
+      showPopup("Info", t.noDish);
     }
+
+    haptic("success");
+    await refreshStatus();
+  }catch(e){
+    if(String(e.message).includes("NO_TOKENS")){
+      haptic("error");
+      showPopup("Oops", t.noTokens);
+    } else {
+      showPopup("Error", "Daily: " + e.message);
+    }
+    await refreshStatus();
   }
+}
 
   async function loadAction(action){
-    const t = I18N[LANG] || I18N.ua;
-    try{
-      const r = await api("/api/action", "POST", {action});
-      if(action==="ingredients") renderOut(t.outIng, r.data, 2);
-      if(action==="steps") renderOut(t.outSteps, r.data, 2);
-      if(action==="time") renderOut(t.outTime, (r.data ?? 0) + " min", 2);
-      haptic("impact","light");
-      await refreshStatus();
-    }catch(e){
-      if(String(e.message).includes("NO_TOKENS")){
-        haptic("error");
-        showPopup("Oops", t.noTokens);
-      } else {
-        showPopup("Error", action + ": " + e.message);
-      }
-      await refreshStatus();
-    }
-  }
+  const t = I18N[LANG] || I18N.ua;
+  try{
+    const r = await api("/api/action", "POST", {
+      action,
+      index: SELECTED_DISH_INDEX
+    });
 
+    if(action==="ingredients") renderOut(t.outIng, r.data, 2);
+    if(action==="steps") renderOut(t.outSteps, r.data, 2);
+    if(action==="time") renderOut(t.outTime, (r.data ?? 0) + " min", 2);
+
+    haptic("impact","light");
+    await refreshStatus();
+  }catch(e){
+    if(String(e.message).includes("NO_TOKENS")){
+      haptic("error");
+      showPopup("Oops", t.noTokens);
+    } else {
+      showPopup("Error", action + ": " + e.message);
+    }
+    await refreshStatus();
+  }
+}
 
   function setTab(name){
     ["home","recipe","filters","wallet"].forEach(x=>{
